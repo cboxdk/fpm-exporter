@@ -25,8 +25,8 @@ make build-all
 # Quick local build (current platform only)
 make build
 
-# Run once with debugging
-./build/elasticphp-linux-amd64 monitor --once --debug \
+# Run with debugging
+./build/elasticphp-linux-amd64 serve --debug \
   --laravel "name=App,path=/var/www/html,connection=redis,queues=default|emails"
 ```
 
@@ -37,7 +37,7 @@ make build
 ### CLI flags
 
 ```bash
-./elasticphp-agent monitor \
+./elasticphp-agent serve \
   --laravel "name=Site1,path=/var/www/site1,connection=redis,queues=default|emails" \
   --laravel "name=Site2,path=/var/www/site2"
 ```
@@ -310,17 +310,17 @@ Release binaries are available from [GitHub Releases](https://github.com/elastic
 # Linux (amd64) - works on ALL distributions including Alpine
 wget https://github.com/elasticphphq/elasticphp-agent/releases/latest/download/elasticphp-linux-amd64
 chmod +x elasticphp-linux-amd64
-./elasticphp-linux-amd64 monitor
+./elasticphp-linux-amd64 serve
 
 # Linux (arm64)
 wget https://github.com/elasticphphq/elasticphp-agent/releases/latest/download/elasticphp-linux-arm64
 chmod +x elasticphp-linux-arm64
-./elasticphp-linux-arm64 monitor
+./elasticphp-linux-arm64 serve
 
 # macOS (Apple Silicon)
 wget https://github.com/elasticphphq/elasticphp-agent/releases/latest/download/elasticphp-darwin-arm64
 chmod +x elasticphp-darwin-arm64
-./elasticphp-darwin-arm64 monitor
+./elasticphp-darwin-arm64 serve
 ```
 
 ---
