@@ -12,10 +12,24 @@ DOCKER_REPO=elasticphphq
 IMAGE_NAME=php:8.4-fpm-bookworm
 CONTAINER_NAME=elasticphp-dev
 
+# Build all platforms (works on both glibc and musl systems)
+build-all:
+	mkdir -p $(BUILD_DIR)
+	@echo "Building static binaries for all platforms..."
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/elasticphp-linux-amd64 -v .
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/elasticphp-linux-arm64 -v .
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/elasticphp-darwin-amd64 -v .
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/elasticphp-darwin-arm64 -v .
+
+# Quick local build (current platform)
 build:
 	mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME) -v .
-	CGO_ENABLED=0 $(GOBUILD) -o $(BUILD_DIR)/arm64-$(BINARY_NAME) -v .
+	CGO_ENABLED=0 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/$(BINARY_NAME) -v .
+
+# Legacy aliases for backwards compatibility
+build-glibc: build-all
+build-musl: build-all
+build-musl-quick: build
 
 test:
 	$(GOTEST) -v -cover ./...

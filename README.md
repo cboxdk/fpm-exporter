@@ -19,11 +19,14 @@ It is designed to run locally, in Docker/Kubernetes or in VMs or shared hosting 
 ## Quickstart
 
 ```bash
-# Build the binary
+# Build for all platforms (works on both glibc and musl/Alpine)
+make build-all
+
+# Quick local build (current platform only)
 make build
 
 # Run once with debugging
-./elasticphp-agent monitor --once --debug \
+./build/elasticphp-linux-amd64 monitor --once --debug \
   --laravel "name=App,path=/var/www/html,connection=redis,queues=default|emails"
 ```
 
@@ -272,6 +275,52 @@ make test
 
 # Run linter
 make lint
+```
+
+---
+
+## Building for Different Platforms
+
+ElasticPHP Agent builds fully static binaries that work on **all** Linux distributions:
+
+```bash
+# Build all platforms
+make build-all
+```
+
+**Produces:**
+- `build/elasticphp-linux-amd64` - Linux x86_64 (works on Ubuntu, Debian, CentOS, Alpine, etc.)
+- `build/elasticphp-linux-arm64` - Linux ARM64 (works on all ARM64 Linux distros)
+- `build/elasticphp-darwin-amd64` - macOS Intel
+- `build/elasticphp-darwin-arm64` - macOS Apple Silicon
+
+### Why One Binary Works Everywhere
+
+Built with `CGO_ENABLED=0`, these are fully static binaries with **no libc dependencies**. This means:
+- ✅ Works on glibc systems (Ubuntu, Debian, CentOS, RHEL)
+- ✅ Works on musl systems (Alpine Linux)
+- ✅ No runtime dependencies
+- ✅ Smaller binary size (~9-10MB stripped)
+
+### Download Pre-built Binaries
+
+Release binaries are available from [GitHub Releases](https://github.com/elasticphphq/elasticphp-agent/releases).
+
+```bash
+# Linux (amd64) - works on ALL distributions including Alpine
+wget https://github.com/elasticphphq/elasticphp-agent/releases/latest/download/elasticphp-linux-amd64
+chmod +x elasticphp-linux-amd64
+./elasticphp-linux-amd64 monitor
+
+# Linux (arm64)
+wget https://github.com/elasticphphq/elasticphp-agent/releases/latest/download/elasticphp-linux-arm64
+chmod +x elasticphp-linux-arm64
+./elasticphp-linux-arm64 monitor
+
+# macOS (Apple Silicon)
+wget https://github.com/elasticphphq/elasticphp-agent/releases/latest/download/elasticphp-darwin-arm64
+chmod +x elasticphp-darwin-arm64
+./elasticphp-darwin-arm64 monitor
 ```
 
 ---
