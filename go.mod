@@ -1,4 +1,4 @@
-module github.com/elasticphphq/agent
+module github.com/gophpeek/phpeek-fpm-exporter
 
 go 1.24.1
 

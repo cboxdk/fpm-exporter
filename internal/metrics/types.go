@@ -1,9 +1,9 @@
 package metrics
 
 import (
-	"github.com/elasticphphq/agent/internal/laravel"
-	"github.com/elasticphphq/agent/internal/phpfpm"
-	"github.com/elasticphphq/agent/internal/server"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/laravel"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/phpfpm"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/server"
 	"time"
 )
 

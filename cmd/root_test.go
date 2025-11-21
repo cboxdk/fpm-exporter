@@ -5,18 +5,18 @@ import (
 	"os"
 	"testing"
 
-	"github.com/elasticphphq/agent/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 func TestRootCommand_Initialization(t *testing.T) {
 	// Test that the root command is properly initialized
-	if rootCmd.Use != "elasticphp-agent" {
-		t.Errorf("Expected root command Use to be 'elasticphp-agent', got %s", rootCmd.Use)
+	if rootCmd.Use != "phpeek-fpm-exporter" {
+		t.Errorf("Expected root command Use to be 'phpeek-fpm-exporter', got %s", rootCmd.Use)
 	}
 
-	if rootCmd.Short != "ElasticPHP Agent for monitoring PHP" {
+	if rootCmd.Short != "PHPeek PHP-FPM Exporter for monitoring PHP-FPM" {
 		t.Errorf("Expected root command Short description to match")
 	}
 
@@ -319,8 +319,8 @@ func TestInit(t *testing.T) {
 	// This is called automatically when the package is imported
 
 	// Verify viper environment prefix
-	if viper.GetEnvPrefix() != "ELASTICPHP" {
-		t.Errorf("Expected viper env prefix to be ELASTICPHP")
+	if viper.GetEnvPrefix() != "PHPEEK" {
+		t.Errorf("Expected viper env prefix to be PHPEEK")
 	}
 
 	// Test that flags are bound to viper
@@ -347,25 +347,25 @@ func contains(s, substr string) bool {
 
 func TestRootCommand_ViperIntegration(t *testing.T) {
 	// Test that viper environment variables work
-	originalEnv := os.Getenv("ELASTICPHP_DEBUG")
+	originalEnv := os.Getenv("PHPEEK_DEBUG")
 	defer func() {
 		if originalEnv == "" {
-			os.Unsetenv("ELASTICPHP_DEBUG")
+			os.Unsetenv("PHPEEK_DEBUG")
 		} else {
-			os.Setenv("ELASTICPHP_DEBUG", originalEnv)
+			os.Setenv("PHPEEK_DEBUG", originalEnv)
 		}
 	}()
 
 	// Set environment variable
-	os.Setenv("ELASTICPHP_DEBUG", "true")
+	os.Setenv("PHPEEK_DEBUG", "true")
 
 	// Reset viper to pick up environment
 	viper.Reset()
-	viper.SetEnvPrefix("ELASTICPHP")
+	viper.SetEnvPrefix("PHPEEK")
 	viper.AutomaticEnv()
 
 	// Check that viper picks up the environment variable
 	if !viper.GetBool("debug") {
-		t.Errorf("Expected viper to pick up ELASTICPHP_DEBUG=true")
+		t.Errorf("Expected viper to pick up PHPEEK_DEBUG=true")
 	}
 }

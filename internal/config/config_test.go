@@ -132,11 +132,11 @@ func TestLoad_Defaults(t *testing.T) {
 
 	// Ensure no environment variables interfere
 	for _, env := range os.Environ() {
-		if len(env) > 10 && env[:10] == "ELASTICPHP" {
+		if len(env) > 10 && env[:10] == "PHPEEK" {
 			parts := []string{env}
 			if len(parts) > 0 {
 				envKey := parts[0]
-				if idx := len("ELASTICPHP_"); len(envKey) > idx {
+				if idx := len("PHPEEK_"); len(envKey) > idx {
 					os.Unsetenv(envKey[:idx-1])
 				}
 			}

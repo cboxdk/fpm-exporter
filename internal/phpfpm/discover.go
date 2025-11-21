@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elasticphphq/agent/internal/logging"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
 	"github.com/shirou/gopsutil/v3/process"
 )
 
@@ -51,13 +51,13 @@ func DiscoverFPMProcesses() ([]DiscoveredFPM, error) {
 
 		exe, err := p.Exe()
 		if err != nil {
-			logging.L().Debug("ElasticPHP-agent Cannot determine binary path", "pid", p.Pid, "error", err)
+			logging.L().Debug("PHPeek Cannot determine binary path", "pid", p.Pid, "error", err)
 			continue
 		}
 
 		parsed, err := ParseFPMConfig(exe, config)
 		if err != nil {
-			logging.L().Error("ElasticPHP-agent ElasticPHP-agent Failed to parse FPM config", "config", config, "error", err)
+			logging.L().Error("PHPeek PHPeek Failed to parse FPM config", "config", config, "error", err)
 			continue
 		}
 
@@ -77,7 +77,7 @@ func DiscoverFPMProcesses() ([]DiscoveredFPM, error) {
 				status = parsed.Global["pm.status_path"]
 			}
 			if status == "" {
-				logging.L().Debug("ElasticPHP-agent Skipping pool with no status path", "pool", poolName, "config", config)
+				logging.L().Debug("PHPeek Skipping pool with no status path", "pool", poolName, "config", config)
 				continue
 			}
 
@@ -92,7 +92,7 @@ func DiscoverFPMProcesses() ([]DiscoveredFPM, error) {
 				CliBinary:    cliBinary,
 			})
 
-			logging.L().Debug("ElasticPHP-agent Discovered php-fpm pool",
+			logging.L().Debug("PHPeek Discovered php-fpm pool",
 				"config", config,
 				"pool", poolName,
 				"socket", socket,
@@ -125,7 +125,7 @@ func parseSocket(socket string) string {
 				resolved = candidate
 				break
 			} else {
-				logging.L().Warn("ElasticPHP-agent Failed to connect to PHP-FPM socket", "socket", candidate, "error", err)
+				logging.L().Warn("PHPeek Failed to connect to PHP-FPM socket", "socket", candidate, "error", err)
 			}
 		}
 		if resolved != "" {

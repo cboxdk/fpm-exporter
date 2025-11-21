@@ -1,7 +1,7 @@
 {
   "id": null,
-  "title": "ElasticPHP Agent",
-  "tags": ["php-fpm", "laravel", "elasticphp"],
+  "title": "PHPeek PHP-FPM Exporter",
+  "tags": ["php-fpm", "laravel", "phpeek"],
   "timezone": "browser",
   "schemaVersion": 36,
   "version": 2,

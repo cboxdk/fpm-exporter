@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/elasticphphq/agent/internal/config"
-	"github.com/elasticphphq/agent/internal/logging"
-	"github.com/elasticphphq/agent/internal/metrics"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log/slog"
@@ -543,8 +543,8 @@ func StartPrometheusServer(cfg *config.Config) {
 		Handler: mux,
 	}
 
-	logging.L().Debug("ElasticPHP-agent Prometheus metrics server listening", slog.Any("addr", cfg.Monitor.ListenAddr))
+	logging.L().Debug("PHPeek Prometheus metrics server listening", slog.Any("addr", cfg.Monitor.ListenAddr))
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logging.L().Error("ElasticPHP-agent Failed to start Prometheus server", slog.Any("err", err))
+		logging.L().Error("PHPeek Failed to start Prometheus server", slog.Any("err", err))
 	}
 }

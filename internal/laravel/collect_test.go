@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/elasticphphq/agent/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
 )
 
 func TestCollect(t *testing.T) {

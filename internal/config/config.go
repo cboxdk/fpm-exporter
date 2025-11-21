@@ -83,7 +83,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("laravel", []LaravelConfig{})
 	// No default queue config, expected to be provided per site if needed
 
-	viper.SetEnvPrefix("ELASTICPHP")
+	viper.SetEnvPrefix("PHPEEK")
 	viper.AutomaticEnv()
 
 	var cfg Config

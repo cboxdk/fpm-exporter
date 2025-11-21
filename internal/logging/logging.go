@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/elasticphphq/agent/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
 )
 
 var logger *slog.Logger

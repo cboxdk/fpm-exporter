@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/elasticphphq/agent/internal/config"
-	"github.com/elasticphphq/agent/internal/logging"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
 )
 
 type BoolString bool
@@ -111,7 +111,7 @@ func GetAppInfo(site config.LaravelConfig, phpBinary string) (*AppInfo, error) {
 		return info, nil
 	}
 
-	logging.L().Debug("ElasticPHP-agent Uncached app info. Calling artisan about", "path", site.Path)
+	logging.L().Debug("PHPeek Uncached app info. Calling artisan about", "path", site.Path)
 
 	cmd := exec.Command(phpBinary, "-d", "error_reporting=E_ALL & ~E_DEPRECATED", "artisan", "about", "--json")
 

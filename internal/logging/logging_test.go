@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/elasticphphq/agent/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
 )
 
 func TestInit_JSONFormat(t *testing.T) {

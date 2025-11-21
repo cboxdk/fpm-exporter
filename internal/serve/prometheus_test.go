@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elasticphphq/agent/internal/config"
-	"github.com/elasticphphq/agent/internal/logging"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"

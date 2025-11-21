@@ -72,17 +72,17 @@ func TestVersionCommand_RunFunction(t *testing.T) {
 		{
 			name:           "with version set",
 			version:        "1.2.3",
-			expectedOutput: "ElasticPHP Agent version 1.2.3\n",
+			expectedOutput: "PHPeek PHP-FPM Exporter version 1.2.3\n",
 		},
 		{
 			name:           "with empty version",
 			version:        "",
-			expectedOutput: "ElasticPHP Agent version \n",
+			expectedOutput: "PHPeek PHP-FPM Exporter version \n",
 		},
 		{
 			name:           "with development version",
 			version:        "dev",
-			expectedOutput: "ElasticPHP Agent version dev\n",
+			expectedOutput: "PHPeek PHP-FPM Exporter version dev\n",
 		},
 	}
 
@@ -188,13 +188,13 @@ func TestVersionCommand_OutputFormat(t *testing.T) {
 	output := buf.String()
 
 	// Test format
-	expected := fmt.Sprintf("ElasticPHP Agent version %s\n", Version)
+	expected := fmt.Sprintf("PHPeek PHP-FPM Exporter version %s\n", Version)
 	if output != expected {
 		t.Errorf("Expected exact output format '%s', got '%s'", expected, output)
 	}
 
 	// Test that it starts with expected prefix
-	expectedPrefix := "ElasticPHP Agent version "
+	expectedPrefix := "PHPeek PHP-FPM Exporter version "
 	if !strings.HasPrefix(output, expectedPrefix) {
 		t.Errorf("Expected output to start with '%s', got '%s'", expectedPrefix, output)
 	}

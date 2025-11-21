@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elasticphphq/agent/internal/config"
-	"github.com/elasticphphq/agent/internal/logging"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
 )
 
 func TestPoolProcess_Structure(t *testing.T) {

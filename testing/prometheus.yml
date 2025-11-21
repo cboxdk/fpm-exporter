@@ -2,6 +2,6 @@ global:
   scrape_interval: 5s
 
 scrape_configs:
-  - job_name: 'elasticphp'
+  - job_name: 'phpeek'
     static_configs:
       - targets: ['host.docker.internal:9114']

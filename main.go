@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/elasticphphq/agent/cmd"
+	"github.com/gophpeek/phpeek-fpm-exporter/cmd"
 )
 
 var (

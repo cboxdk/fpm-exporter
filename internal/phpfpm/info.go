@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/elasticphphq/agent/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
 	"github.com/elasticphphq/fcgx"
 	"io"
 	"os"
@@ -115,7 +115,7 @@ func getPHPConfig(ctx context.Context, cfg config.FPMPoolConfig) (map[string]int
 	confEnv := map[string]string{
 		"SCRIPT_FILENAME": scriptPath,
 		"SCRIPT_NAME":     "/" + filepath.Base(scriptPath),
-		"SERVER_SOFTWARE": "elasticphp-agent",
+		"SERVER_SOFTWARE": "phpeek-fpm-exporter",
 		"REMOTE_ADDR":     "127.0.0.1",
 	}
 

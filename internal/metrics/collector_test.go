@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elasticphphq/agent/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
 )
 
 func TestNewCollector(t *testing.T) {

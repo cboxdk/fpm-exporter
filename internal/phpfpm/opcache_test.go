@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/elasticphphq/agent/internal/config"
-	"github.com/elasticphphq/agent/internal/logging"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
 )
 
 func TestOpcacheStatus_Structure(t *testing.T) {
@@ -296,7 +296,7 @@ func TestGetOpcacheStatus_ErrorHandling(t *testing.T) {
 
 func TestGetOpcacheStatus_ScriptCreation(t *testing.T) {
 	// Test that the opcache status script is created
-	expectedPath := "/tmp/elasticphp-opcache-status.php"
+	expectedPath := "/tmp/phpeek-opcache-status.php"
 
 	// Remove the file if it exists
 	_ = os.Remove(expectedPath)
@@ -349,7 +349,7 @@ func TestGetOpcacheStatus_ScriptCreation(t *testing.T) {
 
 func TestGetOpcacheStatus_ScriptReuse(t *testing.T) {
 	// Test that the script is reused if it already exists
-	expectedPath := "/tmp/elasticphp-opcache-status.php"
+	expectedPath := "/tmp/phpeek-opcache-status.php"
 
 	// Create a custom script first
 	customContent := `<?php echo "custom script";`

@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/elasticphphq/agent/internal/phpfpm"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/phpfpm"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/elasticphphq/agent/internal/config"
-	"github.com/elasticphphq/agent/internal/logging"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -21,9 +21,9 @@ var Config *config.Config
 var laravelFlags []string
 
 var rootCmd = &cobra.Command{
-	Use:   "elasticphp-agent",
-	Short: "ElasticPHP Agent for monitoring PHP",
-	Long:  `elasticphp-agent is a lightweight php metrics collector`,
+	Use:   "phpeek-fpm-exporter",
+	Short: "PHPeek PHP-FPM Exporter for monitoring PHP-FPM",
+	Long:  `phpeek-fpm-exporter is a lightweight PHP-FPM metrics exporter for Prometheus`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Read config file if specified
 		if path := viper.GetString("config"); path != "" {
@@ -101,8 +101,8 @@ var rootCmd = &cobra.Command{
 		Config = loaded
 
 		logging.Init(Config.Logging)
-		logging.L().Debug("ElasticPHP-agent Logging initialized", "level", Config.Logging.Level)
-		logging.L().Debug("ElasticPHP-agent Loaded config", "config", Config)
+		logging.L().Debug("PHPeek Logging initialized", "level", Config.Logging.Level)
+		logging.L().Debug("PHPeek Loaded config", "config", Config)
 
 		// phpfpm autodiscover
 		if Config.PHPFpm.Enabled && Config.PHPFpm.Autodiscover {
@@ -115,16 +115,16 @@ var rootCmd = &cobra.Command{
 					break
 				}
 
-				logging.L().Debug("ElasticPHP-agent PHP-FPM autodiscover attempt failed", "attempt", i+1, "error", err)
+				logging.L().Debug("PHPeek PHP-FPM autodiscover attempt failed", "attempt", i+1, "error", err)
 				time.Sleep(time.Duration(Config.PHPFpm.RetryDelay) * time.Second)
 			}
 
 			if err != nil {
-				logging.L().Error("ElasticPHP-agent PHP-FPM Autodiscover failed after retries", "error", err)
+				logging.L().Error("PHPeek PHP-FPM Autodiscover failed after retries", "error", err)
 			} else if len(discovered) == 0 {
-				logging.L().Error("ElasticPHP-agent PHP-FPM Autodiscover succeeded but no FPM pools found")
+				logging.L().Error("PHPeek PHP-FPM Autodiscover succeeded but no FPM pools found")
 			} else {
-				logging.L().Debug("ElasticPHP-agent Discovered PHP-FPM Processes", "pools", discovered)
+				logging.L().Debug("PHPeek Discovered PHP-FPM Processes", "pools", discovered)
 				for _, d := range discovered {
 					Config.PHPFpm.Pools = append(Config.PHPFpm.Pools, config.FPMPoolConfig{
 						Socket:       d.Socket,
@@ -160,6 +160,6 @@ func init() {
 	_ = viper.BindPFlag("phpfpm.autodiscover", rootCmd.PersistentFlags().Lookup("autodiscover"))
 	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
 
-	viper.SetEnvPrefix("ELASTICPHP")
+	viper.SetEnvPrefix("PHPEEK")
 	viper.AutomaticEnv()
 }

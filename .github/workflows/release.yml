@@ -43,7 +43,7 @@ jobs:
           DATE: ${{ env.DATE }}
         run: |
           mkdir -p dist
-          output="dist/elasticphp-${GOOS}-${GOARCH}"
+          output="dist/phpeek-fpm-exporter-${GOOS}-${GOARCH}"
           CGO_ENABLED=0 go build \
             -ldflags "-X 'main.version=${VERSION}' -X 'main.commit=${COMMIT}' -X 'main.date=${DATE}' -w -s" \
             -o "$output" .
@@ -51,6 +51,6 @@ jobs:
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/elasticphp-${{ matrix.goos }}-${{ matrix.goarch }}
+          files: dist/phpeek-fpm-exporter-${{ matrix.goos }}-${{ matrix.goarch }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,6 @@
-# ElasticPHP Agent
+# PHPeek PHP-FPM Exporter
 
-ElasticPHP Agent is a lightweight, Go-based monitoring agent for PHP-FPM and Laravel applications.  
+PHPeek PHP-FPM Exporter is a lightweight, Go-based Prometheus exporter for PHP-FPM and Laravel applications.
 It is designed to run locally, in Docker/Kubernetes or in VMs or shared hosting environments.
 
 ## Features
@@ -26,7 +26,7 @@ make build-all
 make build
 
 # Run with debugging
-./build/elasticphp-linux-amd64 serve --debug \
+./build/phpeek-fpm-exporter-linux-amd64 serve --debug \
   --laravel "name=App,path=/var/www/html,connection=redis,queues=default|emails"
 ```
 
@@ -37,19 +37,19 @@ make build
 ### CLI flags
 
 ```bash
-./elasticphp-agent serve \
+./phpeek-fpm-exporter serve \
   --laravel "name=Site1,path=/var/www/site1,connection=redis,queues=default|emails" \
   --laravel "name=Site2,path=/var/www/site2"
 ```
 
 ### Environment variables
 
-| ENV                         | Description                             |
-|----------------------------|-----------------------------------------|
-| ELASTICPHP_DEBUG           | Enable debug mode                       |
-| ELASTICPHP_MONITOR_LISTEN  | Prometheus listen address (e.g. :9114)  |
-| ELASTICPHP_PHP_BINARY      | Path to default PHP binary              |
-| ELASTICPHP_PHPFPM_ENABLED  | Enable PHP-FPM monitoring (default: true) |
+| ENV                      | Description                             |
+|--------------------------|-----------------------------------------|
+| PHPEEK_DEBUG             | Enable debug mode                       |
+| PHPEEK_MONITOR_LISTEN    | Prometheus listen address (e.g. :9114)  |
+| PHPEEK_PHP_BINARY        | Path to default PHP binary              |
+| PHPEEK_PHPFPM_ENABLED    | Enable PHP-FPM monitoring (default: true) |
 
 ### YAML config
 
@@ -78,7 +78,7 @@ laravel:
 
 ## Prometheus Metrics
 
-This agent exposes metrics for:
+This exporter exposes metrics for:
 
 - Laravel app info, cache and driver state
 - Laravel queue size per connection/queue
@@ -281,7 +281,7 @@ make lint
 
 ## Building for Different Platforms
 
-ElasticPHP Agent builds fully static binaries that work on **all** Linux distributions:
+PHPeek PHP-FPM Exporter builds fully static binaries that work on **all** Linux distributions:
 
 ```bash
 # Build all platforms
@@ -289,10 +289,10 @@ make build-all
 ```
 
 **Produces:**
-- `build/elasticphp-linux-amd64` - Linux x86_64 (works on Ubuntu, Debian, CentOS, Alpine, etc.)
-- `build/elasticphp-linux-arm64` - Linux ARM64 (works on all ARM64 Linux distros)
-- `build/elasticphp-darwin-amd64` - macOS Intel
-- `build/elasticphp-darwin-arm64` - macOS Apple Silicon
+- `build/phpeek-fpm-exporter-linux-amd64` - Linux x86_64 (works on Ubuntu, Debian, CentOS, Alpine, etc.)
+- `build/phpeek-fpm-exporter-linux-arm64` - Linux ARM64 (works on all ARM64 Linux distros)
+- `build/phpeek-fpm-exporter-darwin-amd64` - macOS Intel
+- `build/phpeek-fpm-exporter-darwin-arm64` - macOS Apple Silicon
 
 ### Why One Binary Works Everywhere
 
@@ -304,27 +304,27 @@ Built with `CGO_ENABLED=0`, these are fully static binaries with **no libc depen
 
 ### Download Pre-built Binaries
 
-Release binaries are available from [GitHub Releases](https://github.com/elasticphphq/elasticphp-agent/releases).
+Release binaries are available from [GitHub Releases](https://github.com/gophpeek/phpeek-fpm-exporter/releases).
 
 ```bash
 # Linux (amd64) - works on ALL distributions including Alpine
-wget https://github.com/elasticphphq/elasticphp-agent/releases/latest/download/elasticphp-linux-amd64
-chmod +x elasticphp-linux-amd64
-./elasticphp-linux-amd64 serve
+wget https://github.com/gophpeek/phpeek-fpm-exporter/releases/latest/download/phpeek-fpm-exporter-linux-amd64
+chmod +x phpeek-fpm-exporter-linux-amd64
+./phpeek-fpm-exporter-linux-amd64 serve
 
 # Linux (arm64)
-wget https://github.com/elasticphphq/elasticphp-agent/releases/latest/download/elasticphp-linux-arm64
-chmod +x elasticphp-linux-arm64
-./elasticphp-linux-arm64 serve
+wget https://github.com/gophpeek/phpeek-fpm-exporter/releases/latest/download/phpeek-fpm-exporter-linux-arm64
+chmod +x phpeek-fpm-exporter-linux-arm64
+./phpeek-fpm-exporter-linux-arm64 serve
 
 # macOS (Apple Silicon)
-wget https://github.com/elasticphphq/elasticphp-agent/releases/latest/download/elasticphp-darwin-arm64
-chmod +x elasticphp-darwin-arm64
-./elasticphp-darwin-arm64 serve
+wget https://github.com/gophpeek/phpeek-fpm-exporter/releases/latest/download/phpeek-fpm-exporter-darwin-arm64
+chmod +x phpeek-fpm-exporter-darwin-arm64
+./phpeek-fpm-exporter-darwin-arm64 serve
 ```
 
 ---
 
 ## License
 
-MIT License — © 2024–2025 [ElasticPHP HQ](https://github.com/elasticphphq)
+MIT License — © 2024–2025 [PHPeek](https://github.com/gophpeek)

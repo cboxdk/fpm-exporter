@@ -2,7 +2,7 @@ package laravel
 
 import (
 	"context"
-	"github.com/elasticphphq/agent/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
 )
 
 type LaravelMetrics struct {

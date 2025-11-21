@@ -3,12 +3,12 @@ package phpfpm
 import (
 	"context"
 	"fmt"
-	"github.com/elasticphphq/agent/internal/logging"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
 	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/elasticphphq/agent/internal/config"
+	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
 	"github.com/elasticphphq/fcgx"
 )
 
@@ -73,16 +73,16 @@ func GetMetrics(ctx context.Context, cfg *config.Config) (map[string]*Result, er
 
 		scheme, address, path, err := ParseAddress(poolCfg.StatusSocket, poolCfg.StatusPath)
 		if err != nil {
-			logging.L().Error("ElasticPHP-agent Invalid FPM socket address: %v", slog.Any("err", err))
+			logging.L().Error("PHPeek Invalid FPM socket address: %v", slog.Any("err", err))
 			continue
 		}
 
 		dialCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		logging.L().Debug("ElasticPHP-agent Dialing FastCGI", "scheme", scheme, "address", address, "status_path", path)
+		logging.L().Debug("PHPeek Dialing FastCGI", "scheme", scheme, "address", address, "status_path", path)
 		client, err := fcgx.DialContext(dialCtx, scheme, address)
 		cancel()
 		if err != nil {
-			logging.L().Debug("ElasticPHP-agent failed to dial FastCGI", "error", err)
+			logging.L().Debug("PHPeek failed to dial FastCGI", "error", err)
 			continue
 		}
 		defer client.Close()
@@ -90,15 +90,15 @@ func GetMetrics(ctx context.Context, cfg *config.Config) (map[string]*Result, er
 		env := map[string]string{
 			"SCRIPT_FILENAME": path,
 			"SCRIPT_NAME":     path,
-			"SERVER_SOFTWARE": "elasticphp-agent",
+			"SERVER_SOFTWARE": "phpeek-fpm-exporter",
 			"REMOTE_ADDR":     "127.0.0.1",
 			"QUERY_STRING":    "json&full",
 		}
-		logging.L().Debug("ElasticPHP-agent Sending FCGI request", "env", env)
+		logging.L().Debug("PHPeek Sending FCGI request", "env", env)
 
 		resp, err := client.Get(ctx, env)
 		if err != nil {
-			logging.L().Debug("ElasticPHP-agent fcgi GET failed", "error", err)
+			logging.L().Debug("PHPeek fcgi GET failed", "error", err)
 			continue
 		}
 		defer resp.Body.Close()
@@ -107,7 +107,7 @@ func GetMetrics(ctx context.Context, cfg *config.Config) (map[string]*Result, er
 		err = fcgx.ReadJSON(resp, &pool)
 
 		if err != nil {
-			logging.L().Error("ElasticPHP-agent failed to parse FPM JSON: %v", slog.Any("err", err))
+			logging.L().Error("PHPeek failed to parse FPM JSON: %v", slog.Any("err", err))
 			continue
 		}
 
@@ -163,14 +163,14 @@ func GetMetrics(ctx context.Context, cfg *config.Config) (map[string]*Result, er
 		if err == nil && phpStatus != nil {
 			pool.PhpInfo = *phpStatus
 		} else {
-			logging.L().Debug("ElasticPHP-agent failed to get PHP info", "error", err)
+			logging.L().Debug("PHPeek failed to get PHP info", "error", err)
 		}
 
 		opcacheStatus, err := GetOpcacheStatus(ctx, poolCfg)
 		if err == nil && opcacheStatus != nil {
 			pool.OpcacheStatus = *opcacheStatus
 		} else {
-			logging.L().Debug("ElasticPHP-agent failed to get Opcache info", "error", err)
+			logging.L().Debug("PHPeek failed to get Opcache info", "error", err)
 		}
 
 		result.Pools[pool.Name] = pool
@@ -195,7 +195,7 @@ func GetMetricsForPool(ctx context.Context, pool config.FPMPoolConfig) (*Result,
 	env := map[string]string{
 		"SCRIPT_FILENAME": path,
 		"SCRIPT_NAME":     path,
-		"SERVER_SOFTWARE": "elasticphp-agent",
+		"SERVER_SOFTWARE": "phpeek-fpm-exporter",
 		"REMOTE_ADDR":     "127.0.0.1",
 		"QUERY_STRING":    "json&full",
 	}
