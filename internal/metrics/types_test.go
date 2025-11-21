@@ -200,7 +200,7 @@ func TestMetrics_LaravelOmitEmpty(t *testing.T) {
 	}
 
 	jsonStr := string(jsonData)
-	
+
 	// Laravel should be omitted when nil/empty due to omitempty tag
 	if jsonStr[len(jsonStr)-1] == ',' {
 		t.Errorf("Expected no trailing comma in JSON (Laravel should be omitted)")
@@ -214,7 +214,7 @@ func TestMetrics_LaravelOmitEmpty(t *testing.T) {
 	}
 
 	jsonStr = string(jsonData)
-	
+
 	// Empty Laravel map should still be included (omitempty only applies to nil)
 	// This is Go's default behavior for maps
 }

@@ -28,10 +28,10 @@ var fpmNamePattern = regexp.MustCompile(`^php[0-9]{0,2}.*fpm.*$`)
 func DiscoverFPMProcesses() ([]DiscoveredFPM, error) {
 	procs, err := process.Processes()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list processes: %w", err)
+		return []DiscoveredFPM{}, fmt.Errorf("failed to list processes: %w", err)
 	}
 
-	var found []DiscoveredFPM
+	found := make([]DiscoveredFPM, 0)
 
 	for _, p := range procs {
 		name, err := p.Name()

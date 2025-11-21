@@ -27,10 +27,7 @@ func Init(cfg config.LoggingBlock) {
 	if cfg.Format == "json" {
 		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl})
 	} else {
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			Level: lvl,
-			// TODO: Add color option once slog supports it natively
-		})
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl})
 	}
 
 	logger = slog.New(handler)

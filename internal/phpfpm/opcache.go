@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gophpeek/fcgx"
 	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
-	"github.com/elasticphphq/fcgx"
 	"os"
 	"path/filepath"
 )

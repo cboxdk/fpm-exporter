@@ -3,7 +3,16 @@
     "allow": [
       "mcp__serena__list_dir",
       "mcp__serena__activate_project",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "mcp__serena__get_symbols_overview",
+      "Bash(make build:*)",
+      "Bash(gofmt:*)",
+      "Bash(go test:*)",
+      "Bash(go clean:*)",
+      "Bash(/tmp/phpfpm_test:*)",
+      "Bash(go list:*)",
+      "Bash(sort:*)",
+      "Bash(./phpeek-fpm-exporter:*)"
     ],
     "deny": [],
     "ask": []

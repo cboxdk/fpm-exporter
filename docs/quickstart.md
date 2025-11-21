@@ -78,11 +78,37 @@ curl -X POST http://localhost:9090/-/reload
 
 ## Adding Laravel Monitoring
 
-Monitor Laravel queue sizes and application state:
+Monitor Laravel queue sizes and application state using one of these methods:
 
+**Shorthand (Quick Setup):**
+```bash
+phpeek-fpm-exporter serve --laravel MyApp:/var/www/html
+```
+
+**Repeatable Flags (With Queues):**
 ```bash
 phpeek-fpm-exporter serve \
-  --laravel "name=MyApp,path=/var/www/html,connection=redis,queues=default|emails"
+  --laravel-site name=MyApp \
+  --laravel-site path=/var/www/html \
+  --laravel-site queues.redis=default,emails
+```
+
+**Config File (Complex Setups):**
+
+Create `laravel-sites.yaml`:
+```yaml
+laravel:
+  - name: MyApp
+    path: /var/www/html
+    queues:
+      redis:
+        - default
+        - emails
+```
+
+Run:
+```bash
+phpeek-fpm-exporter serve --laravel-config laravel-sites.yaml
 ```
 
 This exposes:

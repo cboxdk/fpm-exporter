@@ -47,7 +47,7 @@ func TestInit_JSONFormat(t *testing.T) {
 
 	var output bytes.Buffer
 	output.ReadFrom(r)
-	
+
 	outputStr := output.String()
 	if !strings.Contains(outputStr, "test debug message") {
 		t.Errorf("Expected log output to contain debug message")
@@ -99,7 +99,7 @@ func TestInit_LogLevels(t *testing.T) {
 			expected: slog.LevelWarn,
 		},
 		{
-			name:     "error level", 
+			name:     "error level",
 			level:    "error",
 			expected: slog.LevelError,
 		},

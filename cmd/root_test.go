@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -104,7 +102,10 @@ monitor:
 	}
 }
 
-func TestRootCommand_LaravelFlagParsing(t *testing.T) {
+// DEPRECATED: Old test for removed laravelFlags format
+// New tests in laravel_config_test.go
+/*
+func TestRootCommand_LaravelFlagParsing_OLD_FORMAT(t *testing.T) {
 	// Save original state
 	originalConfig := Config
 	defer func() { Config = originalConfig }()
@@ -223,6 +224,7 @@ func TestRootCommand_LaravelFlagParsing(t *testing.T) {
 		})
 	}
 }
+*/
 
 func TestRootCommand_LogLevelHandling(t *testing.T) {
 	// Save original state
@@ -257,7 +259,9 @@ func TestRootCommand_LogLevelHandling(t *testing.T) {
 			// Reset state
 			viper.Reset()
 			Config = nil
-			laravelFlags = []string{}
+			laravelShorthand = ""
+			laravelSiteFlags = nil
+			laravelConfigFile = ""
 
 			// Set up viper config
 			viper.Set("php.binary", "php")

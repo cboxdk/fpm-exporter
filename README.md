@@ -4,7 +4,7 @@ PHPeek PHP-FPM Exporter is a lightweight, Go-based Prometheus exporter for PHP-F
 
 ## Features
 
-- 📊 PHP-FPM metrics via FastCGI (using [fcgx](https://github.com/elasticphphq/fcgx))
+- 📊 PHP-FPM metrics via FastCGI (using [fcgx](https://github.com/gophpeek/fcgx))
 - ⚙️ Automatic PHP-FPM pool discovery via `php-fpm -tt`
 - 🧠 Opcache statistics per FPM pool
 - 🚦 Laravel queue sizes, app info, cache state
@@ -30,9 +30,14 @@ curl -fsSL https://raw.githubusercontent.com/gophpeek/phpeek-fpm-exporter/main/i
 # Run with auto-discovery
 phpeek-fpm-exporter serve
 
-# With Laravel monitoring
+# With Laravel monitoring (shorthand)
+phpeek-fpm-exporter serve --laravel App:/var/www/html
+
+# With Laravel queues (explicit)
 phpeek-fpm-exporter serve \
-  --laravel "name=App,path=/var/www/html,connection=redis,queues=default|emails"
+  --laravel-site name=App \
+  --laravel-site path=/var/www/html \
+  --laravel-site queues.redis=default,emails
 ```
 
 ## Configuration
