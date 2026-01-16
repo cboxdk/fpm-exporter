@@ -1,52 +1,52 @@
 ---
 title: "Installation"
-description: "Download and install PHPeek PHP-FPM Exporter on Linux, macOS, Docker, or Kubernetes"
+description: "Download and install Cbox FPM Exporter on Linux, macOS, Docker, or Kubernetes"
 weight: 2
 ---
 
 # Installation
 
-PHPeek PHP-FPM Exporter is distributed as a single static binary with no runtime dependencies. It works on any Linux distribution including Alpine.
+Cbox FPM Exporter is distributed as a single static binary with no runtime dependencies. It works on any Linux distribution including Alpine.
 
 ## Quick Install
 
 ```bash
 # Latest version
-curl -fsSL https://raw.githubusercontent.com/gophpeek/phpeek-fpm-exporter/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/cboxdk/fpm-exporter/main/install.sh | sh
 
 # Specific version
-curl -fsSL https://raw.githubusercontent.com/gophpeek/phpeek-fpm-exporter/main/install.sh | VERSION=v1.0.0 sh
+curl -fsSL https://raw.githubusercontent.com/cboxdk/fpm-exporter/main/install.sh | VERSION=v1.0.0 sh
 
 # Custom install directory
-curl -fsSL https://raw.githubusercontent.com/gophpeek/phpeek-fpm-exporter/main/install.sh | INSTALL_DIR=/opt/bin sh
+curl -fsSL https://raw.githubusercontent.com/cboxdk/fpm-exporter/main/install.sh | INSTALL_DIR=/opt/bin sh
 ```
 
 This auto-detects your OS and architecture and installs to `/usr/local/bin`.
 
 ## Pre-built Binaries
 
-Download the latest release from [GitHub Releases](https://github.com/gophpeek/phpeek-fpm-exporter/releases):
+Download the latest release from [GitHub Releases](https://github.com/cboxdk/fpm-exporter/releases):
 
 ```bash
 # Linux (amd64) - Works on ALL distributions including Alpine
-wget https://github.com/gophpeek/phpeek-fpm-exporter/releases/latest/download/phpeek-fpm-exporter-linux-amd64
-chmod +x phpeek-fpm-exporter-linux-amd64
-sudo mv phpeek-fpm-exporter-linux-amd64 /usr/local/bin/phpeek-fpm-exporter
+wget https://github.com/cboxdk/fpm-exporter/releases/latest/download/fpm-exporter-linux-amd64
+chmod +x fpm-exporter-linux-amd64
+sudo mv fpm-exporter-linux-amd64 /usr/local/bin/fpm-exporter
 
 # Linux (arm64)
-wget https://github.com/gophpeek/phpeek-fpm-exporter/releases/latest/download/phpeek-fpm-exporter-linux-arm64
-chmod +x phpeek-fpm-exporter-linux-arm64
-sudo mv phpeek-fpm-exporter-linux-arm64 /usr/local/bin/phpeek-fpm-exporter
+wget https://github.com/cboxdk/fpm-exporter/releases/latest/download/fpm-exporter-linux-arm64
+chmod +x fpm-exporter-linux-arm64
+sudo mv fpm-exporter-linux-arm64 /usr/local/bin/fpm-exporter
 
 # macOS (Apple Silicon)
-wget https://github.com/gophpeek/phpeek-fpm-exporter/releases/latest/download/phpeek-fpm-exporter-darwin-arm64
-chmod +x phpeek-fpm-exporter-darwin-arm64
-sudo mv phpeek-fpm-exporter-darwin-arm64 /usr/local/bin/phpeek-fpm-exporter
+wget https://github.com/cboxdk/fpm-exporter/releases/latest/download/fpm-exporter-darwin-arm64
+chmod +x fpm-exporter-darwin-arm64
+sudo mv fpm-exporter-darwin-arm64 /usr/local/bin/fpm-exporter
 
 # macOS (Intel)
-wget https://github.com/gophpeek/phpeek-fpm-exporter/releases/latest/download/phpeek-fpm-exporter-darwin-amd64
-chmod +x phpeek-fpm-exporter-darwin-amd64
-sudo mv phpeek-fpm-exporter-darwin-amd64 /usr/local/bin/phpeek-fpm-exporter
+wget https://github.com/cboxdk/fpm-exporter/releases/latest/download/fpm-exporter-darwin-amd64
+chmod +x fpm-exporter-darwin-amd64
+sudo mv fpm-exporter-darwin-amd64 /usr/local/bin/fpm-exporter
 ```
 
 ## Build from Source
@@ -54,8 +54,8 @@ sudo mv phpeek-fpm-exporter-darwin-amd64 /usr/local/bin/phpeek-fpm-exporter
 Requires Go 1.24 or later:
 
 ```bash
-git clone https://github.com/gophpeek/phpeek-fpm-exporter.git
-cd phpeek-fpm-exporter
+git clone https://github.com/cboxdk/fpm-exporter.git
+cd fpm-exporter
 
 # Build for current platform
 make build
@@ -65,10 +65,10 @@ make build-all
 ```
 
 Built binaries are placed in `build/`:
-- `build/phpeek-fpm-exporter-linux-amd64`
-- `build/phpeek-fpm-exporter-linux-arm64`
-- `build/phpeek-fpm-exporter-darwin-amd64`
-- `build/phpeek-fpm-exporter-darwin-arm64`
+- `build/fpm-exporter-linux-amd64`
+- `build/fpm-exporter-linux-arm64`
+- `build/fpm-exporter-darwin-amd64`
+- `build/fpm-exporter-darwin-arm64`
 
 ## Docker
 
@@ -76,10 +76,10 @@ Run alongside your PHP-FPM container:
 
 ```bash
 docker run -d \
-  --name phpeek-exporter \
+  --name fpm-exporter \
   -p 9114:9114 \
   -v /var/run/php-fpm.sock:/var/run/php-fpm.sock \
-  gophpeek/phpeek-fpm-exporter:latest serve
+  cboxdk/fpm-exporter:latest serve
 ```
 
 ## Kubernetes
@@ -102,8 +102,8 @@ spec:
         - name: fpm-socket
           mountPath: /var/run
 
-    - name: phpeek-exporter
-      image: gophpeek/phpeek-fpm-exporter:latest
+    - name: fpm-exporter
+      image: cboxdk/fpm-exporter:latest
       args: ["serve"]
       ports:
         - containerPort: 9114
@@ -118,17 +118,17 @@ spec:
 
 ## Systemd Service
 
-Create `/etc/systemd/system/phpeek-fpm-exporter.service`:
+Create `/etc/systemd/system/fpm-exporter.service`:
 
 ```ini
 [Unit]
-Description=PHPeek PHP-FPM Exporter
+Description=Cbox FPM Exporter
 After=network.target php-fpm.service
 
 [Service]
 Type=simple
 User=www-data
-ExecStart=/usr/local/bin/phpeek-fpm-exporter serve
+ExecStart=/usr/local/bin/fpm-exporter serve
 Restart=always
 RestartSec=5
 
@@ -140,8 +140,8 @@ Enable and start:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable phpeek-fpm-exporter
-sudo systemctl start phpeek-fpm-exporter
+sudo systemctl enable fpm-exporter
+sudo systemctl start fpm-exporter
 ```
 
 ## Verify Installation
@@ -150,10 +150,10 @@ Check the exporter is running:
 
 ```bash
 # Check version
-phpeek-fpm-exporter version
+fpm-exporter version
 
 # Start and test metrics endpoint
-phpeek-fpm-exporter serve &
+fpm-exporter serve &
 curl http://localhost:9114/metrics
 ```
 

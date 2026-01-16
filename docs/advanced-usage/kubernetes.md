@@ -1,12 +1,12 @@
 ---
 title: "Kubernetes Deployment"
-description: "Deploy PHPeek PHP-FPM Exporter as a sidecar container or DaemonSet in Kubernetes"
+description: "Deploy Cbox FPM Exporter as a sidecar container or DaemonSet in Kubernetes"
 weight: 23
 ---
 
 # Kubernetes Deployment
 
-Deploy PHPeek PHP-FPM Exporter in Kubernetes environments.
+Deploy Cbox FPM Exporter in Kubernetes environments.
 
 ## Sidecar Pattern
 
@@ -43,9 +43,9 @@ spec:
             - name: app-code
               mountPath: /var/www/html
 
-        # PHPeek Exporter sidecar
-        - name: phpeek-exporter
-          image: gophpeek/phpeek-fpm-exporter:latest
+        # Cbox FPM Exporter sidecar
+        - name: fpm-exporter
+          image: cboxdk/fpm-exporter:latest
           args:
             - serve
             - --laravel
@@ -84,7 +84,7 @@ Use ConfigMap for complex configurations:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: phpeek-config
+  name: fpm-exporter-config
 data:
   config.yaml: |
     debug: false
@@ -110,19 +110,19 @@ spec:
   template:
     spec:
       containers:
-        - name: phpeek-exporter
-          image: gophpeek/phpeek-fpm-exporter:latest
+        - name: fpm-exporter
+          image: cboxdk/fpm-exporter:latest
           args:
             - serve
             - --config
-            - /etc/phpeek/config.yaml
+            - /etc/cbox/config.yaml
           volumeMounts:
             - name: config
-              mountPath: /etc/phpeek
+              mountPath: /etc/cbox
       volumes:
         - name: config
           configMap:
-            name: phpeek-config
+            name: fpm-exporter-config
 ```
 
 ## ServiceMonitor (Prometheus Operator)
@@ -133,7 +133,7 @@ If using Prometheus Operator:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: phpeek
+  name: fpm-exporter
   labels:
     release: prometheus
 spec:
@@ -168,7 +168,7 @@ For direct pod monitoring:
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: phpeek
+  name: fpm-exporter
 spec:
   selector:
     matchLabels:
@@ -184,7 +184,7 @@ Add health checks to the exporter:
 
 ```yaml
 containers:
-  - name: phpeek-exporter
+  - name: fpm-exporter
     livenessProbe:
       httpGet:
         path: /metrics
@@ -213,7 +213,7 @@ Run with minimal privileges:
 
 ```yaml
 containers:
-  - name: phpeek-exporter
+  - name: fpm-exporter
     securityContext:
       runAsNonRoot: true
       runAsUser: 1000
@@ -232,7 +232,7 @@ Restrict exporter traffic:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: phpeek-exporter
+  name: fpm-exporter
 spec:
   podSelector:
     matchLabels:
@@ -254,10 +254,10 @@ If packaging as Helm chart:
 
 ```yaml
 # values.yaml
-phpeek:
+fpmExporter:
   enabled: true
   image:
-    repository: gophpeek/phpeek-fpm-exporter
+    repository: cboxdk/fpm-exporter
     tag: latest
   resources:
     requests:
@@ -283,7 +283,7 @@ phpeek:
 Ensure shared volume is mounted correctly:
 
 ```bash
-kubectl exec -it <pod> -c phpeek-exporter -- ls -la /var/run/
+kubectl exec -it <pod> -c fpm-exporter -- ls -la /var/run/
 ```
 
 ### No Metrics from Laravel
@@ -291,7 +291,7 @@ kubectl exec -it <pod> -c phpeek-exporter -- ls -la /var/run/
 Check app code is accessible:
 
 ```bash
-kubectl exec -it <pod> -c phpeek-exporter -- ls -la /var/www/html/artisan
+kubectl exec -it <pod> -c fpm-exporter -- ls -la /var/www/html/artisan
 ```
 
 ### High Memory Usage

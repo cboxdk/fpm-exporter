@@ -1,12 +1,12 @@
 ---
 title: "Metrics Reference"
-description: "Complete reference of all Prometheus metrics exported by PHPeek PHP-FPM Exporter"
+description: "Complete reference of all Prometheus metrics exported by Cbox FPM Exporter"
 weight: 5
 ---
 
 # Metrics Reference
 
-PHPeek PHP-FPM Exporter provides metrics in three categories: PHP-FPM, Laravel, and System.
+Cbox FPM Exporter provides metrics in three categories: PHP-FPM, Laravel, and System.
 
 ## PHP-FPM Metrics
 

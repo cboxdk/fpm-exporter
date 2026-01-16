@@ -1,6 +1,6 @@
 ---
 title: "Basic Usage"
-description: "Core features and common use cases for PHPeek PHP-FPM Exporter"
+description: "Core features and common use cases for Cbox FPM Exporter"
 weight: 10
 ---
 

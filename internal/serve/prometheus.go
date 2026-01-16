@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/metrics"
+	"github.com/cboxdk/fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/logging"
+	"github.com/cboxdk/fpm-exporter/internal/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log/slog"
@@ -543,8 +543,8 @@ func StartPrometheusServer(cfg *config.Config) {
 		Handler: mux,
 	}
 
-	logging.L().Debug("PHPeek Prometheus metrics server listening", slog.Any("addr", cfg.Monitor.ListenAddr))
+	logging.L().Debug("Cbox Prometheus metrics server listening", slog.Any("addr", cfg.Monitor.ListenAddr))
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logging.L().Error("PHPeek Failed to start Prometheus server", slog.Any("err", err))
+		logging.L().Error("Cbox Failed to start Prometheus server", slog.Any("err", err))
 	}
 }

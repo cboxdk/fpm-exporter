@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gophpeek/fcgx"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/elasticphphq/fcgx"
+	"github.com/cboxdk/fpm-exporter/internal/config"
 	"io"
 	"os"
 	"os/exec"
@@ -115,7 +115,7 @@ func getPHPConfig(ctx context.Context, cfg config.FPMPoolConfig) (map[string]int
 	confEnv := map[string]string{
 		"SCRIPT_FILENAME": scriptPath,
 		"SCRIPT_NAME":     "/" + filepath.Base(scriptPath),
-		"SERVER_SOFTWARE": "phpeek-fpm-exporter",
+		"SERVER_SOFTWARE": "fpm-exporter",
 		"REMOTE_ADDR":     "127.0.0.1",
 	}
 

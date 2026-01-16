@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/gophpeek/phpeek-fpm-exporter/cmd"
+	"github.com/cboxdk/fpm-exporter/cmd"
 )
 
 var (

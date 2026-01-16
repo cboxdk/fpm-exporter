@@ -1,6 +1,6 @@
 ---
 title: "Quickstart"
-description: "Get PHPeek PHP-FPM Exporter running in 5 minutes with automatic PHP-FPM discovery"
+description: "Get Cbox FPM Exporter running in 5 minutes with automatic PHP-FPM discovery"
 weight: 3
 ---
 
@@ -32,7 +32,7 @@ sudo systemctl restart php-fpm
 With automatic discovery (recommended):
 
 ```bash
-phpeek-fpm-exporter serve
+fpm-exporter serve
 ```
 
 The exporter will:
@@ -65,7 +65,7 @@ Add to your `prometheus.yml`:
 
 ```yaml
 scrape_configs:
-  - job_name: 'phpeek'
+  - job_name: 'fpm-exporter'
     static_configs:
       - targets: ['localhost:9114']
 ```
@@ -82,12 +82,12 @@ Monitor Laravel queue sizes and application state using one of these methods:
 
 **Shorthand (Quick Setup):**
 ```bash
-phpeek-fpm-exporter serve --laravel MyApp:/var/www/html
+fpm-exporter serve --laravel MyApp:/var/www/html
 ```
 
 **Repeatable Flags (With Queues):**
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel-site name=MyApp \
   --laravel-site path=/var/www/html \
   --laravel-site queues.redis=default,emails
@@ -108,7 +108,7 @@ laravel:
 
 Run:
 ```bash
-phpeek-fpm-exporter serve --laravel-config laravel-sites.yaml
+fpm-exporter serve --laravel-config laravel-sites.yaml
 ```
 
 This exposes:
@@ -122,13 +122,13 @@ This exposes:
 Enable debug logging to troubleshoot issues:
 
 ```bash
-phpeek-fpm-exporter serve --debug
+fpm-exporter serve --debug
 ```
 
 Or via environment variable:
 
 ```bash
-PHPEEK_DEBUG=true phpeek-fpm-exporter serve
+CBOX_DEBUG=true fpm-exporter serve
 ```
 
 ## Common Issues

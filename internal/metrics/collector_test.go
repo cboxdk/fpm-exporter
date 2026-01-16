@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/config"
 )
 
 func TestNewCollector(t *testing.T) {

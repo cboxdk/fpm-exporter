@@ -1,10 +1,10 @@
-# PHPeek PHP-FPM Exporter
+# Cbox FPM Exporter
 
-PHPeek PHP-FPM Exporter is a lightweight, Go-based Prometheus exporter for PHP-FPM and Laravel applications.
+Cbox FPM Exporter is a lightweight, Go-based Prometheus exporter for PHP-FPM and Laravel applications.
 
 ## Features
 
-- 📊 PHP-FPM metrics via FastCGI (using [fcgx](https://github.com/gophpeek/fcgx))
+- 📊 PHP-FPM metrics via FastCGI (using [fcgx](https://github.com/cboxdk/fcgx))
 - ⚙️ Automatic PHP-FPM pool discovery via `php-fpm -tt`
 - 🧠 Opcache statistics per FPM pool
 - 🚦 Laravel queue sizes, app info, cache state
@@ -13,7 +13,7 @@ PHPeek PHP-FPM Exporter is a lightweight, Go-based Prometheus exporter for PHP-F
 
 ## Documentation
 
-📖 **Full documentation available at [phpeek.com/docs/phpeek-fpm-exporter](https://phpeek.com/docs/phpeek-fpm-exporter/v1/introduction)**
+📖 **Full documentation available at [cbox.dk/docs/fpm-exporter](https://cbox.dk/docs/fpm-exporter/v1/introduction)**
 
 Or browse the [docs folder](./docs) for:
 - [Installation](./docs/installation.md)
@@ -25,16 +25,16 @@ Or browse the [docs folder](./docs) for:
 
 ```bash
 # Install (auto-detects OS/arch)
-curl -fsSL https://raw.githubusercontent.com/gophpeek/phpeek-fpm-exporter/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/cboxdk/fpm-exporter/main/install.sh | sh
 
 # Run with auto-discovery
-phpeek-fpm-exporter serve
+fpm-exporter serve
 
 # With Laravel monitoring (shorthand)
-phpeek-fpm-exporter serve --laravel App:/var/www/html
+fpm-exporter serve --laravel App:/var/www/html
 
 # With Laravel queues (explicit)
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel-site name=App \
   --laravel-site path=/var/www/html \
   --laravel-site queues.redis=default,emails
@@ -46,10 +46,10 @@ phpeek-fpm-exporter serve \
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PHPEEK_DEBUG` | Enable debug mode | `false` |
-| `PHPEEK_MONITOR_LISTEN_ADDR` | Listen address | `:9114` |
-| `PHPEEK_PHPFPM_ENABLED` | Enable PHP-FPM monitoring | `true` |
-| `PHPEEK_PHPFPM_AUTODISCOVER` | Auto-discover pools | `true` |
+| `CBOX_DEBUG` | Enable debug mode | `false` |
+| `CBOX_MONITOR_LISTEN_ADDR` | Listen address | `:9114` |
+| `CBOX_PHPFPM_ENABLED` | Enable PHP-FPM monitoring | `true` |
+| `CBOX_PHPFPM_AUTODISCOVER` | Auto-discover pools | `true` |
 
 ### YAML Config
 
@@ -102,11 +102,11 @@ make build-all
 ```
 
 Produces static binaries (no libc dependencies) for:
-- `phpeek-fpm-exporter-linux-amd64`
-- `phpeek-fpm-exporter-linux-arm64`
-- `phpeek-fpm-exporter-darwin-amd64`
-- `phpeek-fpm-exporter-darwin-arm64`
+- `fpm-exporter-linux-amd64`
+- `fpm-exporter-linux-arm64`
+- `fpm-exporter-darwin-amd64`
+- `fpm-exporter-darwin-arm64`
 
 ## License
 
-MIT License — © 2024–2025 [PHPeek](https://github.com/gophpeek)
+MIT License — © 2024–2025 [Cbox](https://github.com/cboxdk)

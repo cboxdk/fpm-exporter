@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
+	"github.com/cboxdk/fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/logging"
 )
 
 func TestPoolProcess_Structure(t *testing.T) {

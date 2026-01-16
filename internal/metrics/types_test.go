@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/laravel"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/phpfpm"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/server"
+	"github.com/cboxdk/fpm-exporter/internal/laravel"
+	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
+	"github.com/cboxdk/fpm-exporter/internal/server"
 )
 
 func TestMetrics_Structure(t *testing.T) {

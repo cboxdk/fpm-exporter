@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/phpfpm"
+	"github.com/cboxdk/fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/logging"
+	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -28,9 +28,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "phpeek-fpm-exporter",
-	Short: "PHPeek PHP-FPM Exporter for monitoring PHP-FPM",
-	Long:  `phpeek-fpm-exporter is a lightweight PHP-FPM metrics exporter for Prometheus`,
+	Use:   "fpm-exporter",
+	Short: "Cbox FPM Exporter for monitoring PHP-FPM",
+	Long:  `fpm-exporter is a lightweight PHP-FPM metrics exporter for Prometheus`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Read config file if specified
 		if path := viper.GetString("config"); path != "" {
@@ -64,8 +64,8 @@ var rootCmd = &cobra.Command{
 		Config = loaded
 
 		logging.Init(Config.Logging)
-		logging.L().Debug("PHPeek Logging initialized", "level", Config.Logging.Level)
-		logging.L().Debug("PHPeek Loaded config", "config", Config)
+		logging.L().Debug("Cbox Logging initialized", "level", Config.Logging.Level)
+		logging.L().Debug("Cbox Loaded config", "config", Config)
 
 		// phpfpm autodiscover
 		if Config.PHPFpm.Enabled && Config.PHPFpm.Autodiscover {
@@ -78,16 +78,16 @@ var rootCmd = &cobra.Command{
 					break
 				}
 
-				logging.L().Debug("PHPeek PHP-FPM autodiscover attempt failed", "attempt", i+1, "error", err)
+				logging.L().Debug("Cbox PHP-FPM autodiscover attempt failed", "attempt", i+1, "error", err)
 				time.Sleep(time.Duration(Config.PHPFpm.RetryDelay) * time.Second)
 			}
 
 			if err != nil {
-				logging.L().Error("PHPeek PHP-FPM Autodiscover failed after retries", "error", err)
+				logging.L().Error("Cbox PHP-FPM Autodiscover failed after retries", "error", err)
 			} else if len(discovered) == 0 {
-				logging.L().Error("PHPeek PHP-FPM Autodiscover succeeded but no FPM pools found")
+				logging.L().Error("Cbox PHP-FPM Autodiscover succeeded but no FPM pools found")
 			} else {
-				logging.L().Debug("PHPeek Discovered PHP-FPM Processes", "pools", discovered)
+				logging.L().Debug("Cbox Discovered PHP-FPM Processes", "pools", discovered)
 				for _, d := range discovered {
 					Config.PHPFpm.Pools = append(Config.PHPFpm.Pools, config.FPMPoolConfig{
 						Socket:       d.Socket,
@@ -120,18 +120,18 @@ func parseLaravelSites() ([]config.LaravelConfig, error) {
 	}
 
 	// 2. Parse from environment variable
-	if envSites := os.Getenv("PHPEEK_LARAVEL_SITES"); envSites != "" {
+	if envSites := os.Getenv("CBOX_LARAVEL_SITES"); envSites != "" {
 		var envParsed []config.LaravelConfig
 		if err := json.Unmarshal([]byte(envSites), &envParsed); err != nil {
-			return nil, fmt.Errorf("failed to parse PHPEEK_LARAVEL_SITES: %w", err)
+			return nil, fmt.Errorf("failed to parse CBOX_LARAVEL_SITES: %w", err)
 		}
 		sites = mergeSites(sites, envParsed)
 	}
 
-	if envConfig := os.Getenv("PHPEEK_LARAVEL_CONFIG"); envConfig != "" && laravelConfigFile == "" {
+	if envConfig := os.Getenv("CBOX_LARAVEL_CONFIG"); envConfig != "" && laravelConfigFile == "" {
 		fileSites, err := parseConfigFile(envConfig)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse PHPEEK_LARAVEL_CONFIG file: %w", err)
+			return nil, fmt.Errorf("failed to parse CBOX_LARAVEL_CONFIG file: %w", err)
 		}
 		sites = mergeSites(sites, fileSites)
 	}
@@ -349,6 +349,6 @@ func init() {
 	_ = viper.BindPFlag("phpfpm.autodiscover", rootCmd.PersistentFlags().Lookup("autodiscover"))
 	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
 
-	viper.SetEnvPrefix("PHPEEK")
+	viper.SetEnvPrefix("CBOX")
 	viper.AutomaticEnv()
 }

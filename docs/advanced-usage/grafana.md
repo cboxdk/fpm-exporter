@@ -6,14 +6,14 @@ weight: 22
 
 # Grafana Dashboards
 
-Visualize PHPeek metrics with Grafana dashboards.
+Visualize Cbox FPM Exporter metrics with Grafana dashboards.
 
 ## Quick Start
 
 Import the included dashboard:
 
 1. Open Grafana → Dashboards → Import
-2. Upload `testing/grafana/provisioning/dashboards/phpeek-dashboard.json`
+2. Upload `testing/grafana/provisioning/dashboards/fpm-exporter-dashboard.json`
 3. Select your Prometheus data source
 4. Click Import
 
@@ -70,7 +70,7 @@ Create a comprehensive dashboard:
 
 ```json
 {
-  "title": "PHPeek PHP-FPM Exporter",
+  "title": "Cbox FPM Exporter",
   "templating": {
     "list": [
       {
@@ -177,14 +177,14 @@ Auto-provision dashboards in Grafana:
 # /etc/grafana/provisioning/dashboards/default.yml
 apiVersion: 1
 providers:
-  - name: 'PHPeek'
+  - name: 'Cbox FPM Exporter'
     folder: 'PHP Monitoring'
     type: file
     options:
-      path: /var/lib/grafana/dashboards/phpeek
+      path: /var/lib/grafana/dashboards/fpm-exporter
 ```
 
-Place dashboard JSON files in `/var/lib/grafana/dashboards/phpeek/`.
+Place dashboard JSON files in `/var/lib/grafana/dashboards/fpm-exporter/`.
 
 ## Variables
 
