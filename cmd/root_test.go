@@ -10,11 +10,11 @@ import (
 
 func TestRootCommand_Initialization(t *testing.T) {
 	// Test that the root command is properly initialized
-	if rootCmd.Use != "phpeek-fpm-exporter" {
-		t.Errorf("Expected root command Use to be 'phpeek-fpm-exporter', got %s", rootCmd.Use)
+	if rootCmd.Use != "fpm-exporter" {
+		t.Errorf("Expected root command Use to be 'fpm-exporter', got %s", rootCmd.Use)
 	}
 
-	if rootCmd.Short != "PHPeek PHP-FPM Exporter for monitoring PHP-FPM" {
+	if rootCmd.Short != "Cbox FPM Exporter for monitoring PHP-FPM" {
 		t.Errorf("Expected root command Short description to match")
 	}
 
@@ -323,8 +323,8 @@ func TestInit(t *testing.T) {
 	// This is called automatically when the package is imported
 
 	// Verify viper environment prefix
-	if viper.GetEnvPrefix() != "PHPEEK" {
-		t.Errorf("Expected viper env prefix to be PHPEEK")
+	if viper.GetEnvPrefix() != "CBOX" {
+		t.Errorf("Expected viper env prefix to be CBOX")
 	}
 
 	// Test that flags are bound to viper
@@ -351,25 +351,25 @@ func contains(s, substr string) bool {
 
 func TestRootCommand_ViperIntegration(t *testing.T) {
 	// Test that viper environment variables work
-	originalEnv := os.Getenv("PHPEEK_DEBUG")
+	originalEnv := os.Getenv("CBOX_DEBUG")
 	defer func() {
 		if originalEnv == "" {
-			os.Unsetenv("PHPEEK_DEBUG")
+			os.Unsetenv("CBOX_DEBUG")
 		} else {
-			os.Setenv("PHPEEK_DEBUG", originalEnv)
+			os.Setenv("CBOX_DEBUG", originalEnv)
 		}
 	}()
 
 	// Set environment variable
-	os.Setenv("PHPEEK_DEBUG", "true")
+	os.Setenv("CBOX_DEBUG", "true")
 
 	// Reset viper to pick up environment
 	viper.Reset()
-	viper.SetEnvPrefix("PHPEEK")
+	viper.SetEnvPrefix("CBOX")
 	viper.AutomaticEnv()
 
 	// Check that viper picks up the environment variable
 	if !viper.GetBool("debug") {
-		t.Errorf("Expected viper to pick up PHPEEK_DEBUG=true")
+		t.Errorf("Expected viper to pick up CBOX_DEBUG=true")
 	}
 }
