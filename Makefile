@@ -5,21 +5,21 @@ GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
-BINARY_NAME=phpeek-fpm-exporter
+BINARY_NAME=fpm-exporter
 VERSION?=1.0.0
 BUILD_DIR=build
-DOCKER_REPO=gophpeek
+DOCKER_REPO=cboxdk
 IMAGE_NAME=php:8.4-fpm-bookworm
-CONTAINER_NAME=phpeek-dev
+CONTAINER_NAME=cbox-dev
 
 # Build all platforms (works on both glibc and musl systems)
 build-all:
 	mkdir -p $(BUILD_DIR)
 	@echo "Building static binaries for all platforms..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/phpeek-fpm-exporter-linux-amd64 -v .
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/phpeek-fpm-exporter-linux-arm64 -v .
-	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/phpeek-fpm-exporter-darwin-amd64 -v .
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/phpeek-fpm-exporter-darwin-arm64 -v .
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/fpm-exporter-linux-amd64 -v .
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/fpm-exporter-linux-arm64 -v .
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/fpm-exporter-darwin-amd64 -v .
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/fpm-exporter-darwin-arm64 -v .
 
 # Quick local build (current platform)
 build:

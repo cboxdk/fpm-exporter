@@ -6,7 +6,7 @@ weight: 13
 
 # Opcache Metrics
 
-PHPeek collects detailed Opcache statistics for each PHP-FPM pool, helping you optimize PHP performance.
+Cbox FPM Exporter collects detailed Opcache statistics for each PHP-FPM pool, helping you optimize PHP performance.
 
 ## How It Works
 

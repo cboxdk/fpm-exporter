@@ -6,7 +6,7 @@ weight: 11
 
 # PHP-FPM Monitoring
 
-PHPeek automatically discovers and monitors PHP-FPM pools via the FastCGI protocol.
+Cbox FPM Exporter automatically discovers and monitors PHP-FPM pools via the FastCGI protocol.
 
 ## How It Works
 
@@ -36,7 +36,7 @@ sudo systemctl restart php-fpm
 By default, the exporter discovers pools automatically:
 
 ```bash
-phpeek-fpm-exporter serve
+fpm-exporter serve
 ```
 
 Discovery looks for:
@@ -142,7 +142,7 @@ groups:
 pgrep -a php-fpm
 
 # Run with debug mode
-PHPEEK_DEBUG=true phpeek-fpm-exporter serve
+CBOX_DEBUG=true fpm-exporter serve
 ```
 
 ### Permission Denied

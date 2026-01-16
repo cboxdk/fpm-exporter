@@ -6,11 +6,11 @@ weight: 21
 
 # Alerting
 
-Production-ready Prometheus alerting rules for PHPeek metrics.
+Production-ready Prometheus alerting rules for Cbox FPM Exporter metrics.
 
 ## Complete Alert Rules
 
-Save as `phpeek-alerts.yml`:
+Save as `fpm-exporter-alerts.yml`:
 
 ```yaml
 groups:
@@ -175,7 +175,7 @@ Add to your Prometheus configuration:
 ```yaml
 # prometheus.yml
 rule_files:
-  - /etc/prometheus/rules/phpeek-alerts.yml
+  - /etc/prometheus/rules/fpm-exporter-alerts.yml
 
 alerting:
   alertmanagers:

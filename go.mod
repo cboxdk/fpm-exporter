@@ -1,14 +1,15 @@
-module github.com/gophpeek/phpeek-fpm-exporter
+module github.com/cboxdk/fpm-exporter
 
 go 1.24.1
 
 require (
-	github.com/gophpeek/fcgx v1.0.0
+	github.com/elasticphphq/fcgx v1.0.0
 	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/client_model v0.6.1
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -40,5 +41,6 @@ require (
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/elasticphphq/fcgx v1.0.0 => github.com/cboxdk/fcgx v1.0.0

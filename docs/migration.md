@@ -12,19 +12,19 @@ weight: 30
 
 The old format had several limitations:
 
-- ❌ Brittle parsing with commas and pipes
-- ❌ Poor error messages
-- ❌ Difficult to extend
-- ❌ Inconsistent with YAML config
-- ❌ Hard to discover parameters
+- Brittle parsing with commas and pipes
+- Poor error messages
+- Difficult to extend
+- Inconsistent with YAML config
+- Hard to discover parameters
 
 The new format provides:
 
-- ✅ Multiple input methods (shorthand, flags, file, env vars)
-- ✅ Clear, descriptive errors
-- ✅ Easy to extend with new parameters
-- ✅ Consistent with YAML configuration
-- ✅ Better validation (path existence, artisan file check)
+- Multiple input methods (shorthand, flags, file, env vars)
+- Clear, descriptive errors
+- Easy to extend with new parameters
+- Consistent with YAML configuration
+- Better validation (path existence, artisan file check)
 
 ## Migration Examples
 
@@ -32,19 +32,19 @@ The new format provides:
 
 **Old Format:**
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel "name=App,path=/var/www/html"
 ```
 
 **New Format (Shorthand):**
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel App:/var/www/html
 ```
 
 **New Format (Explicit):**
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel-site name=App \
   --laravel-site path=/var/www/html
 ```
@@ -55,13 +55,13 @@ phpeek-fpm-exporter serve \
 
 **Old Format:**
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel "name=App,path=/var/www/html,connection=redis,queues=default|emails"
 ```
 
 **New Format (Repeatable Flags):**
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel-site name=App \
   --laravel-site path=/var/www/html \
   --laravel-site queues.redis=default,emails
@@ -82,7 +82,7 @@ laravel:
 
 Run:
 ```bash
-phpeek-fpm-exporter serve --laravel-config laravel-sites.yaml
+fpm-exporter serve --laravel-config laravel-sites.yaml
 ```
 
 ---
@@ -91,14 +91,14 @@ phpeek-fpm-exporter serve --laravel-config laravel-sites.yaml
 
 **Old Format:**
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel "name=App,path=/var/www/html" \
   --laravel "name=Admin,path=/var/www/admin"
 ```
 
 **New Format (Repeatable Flags):**
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel-site name=App \
   --laravel-site path=/var/www/html \
   --laravel-site name=Admin \
@@ -118,7 +118,7 @@ laravel:
 
 Run:
 ```bash
-phpeek-fpm-exporter serve --laravel-config sites.yaml
+fpm-exporter serve --laravel-config sites.yaml
 ```
 
 ---
@@ -127,7 +127,7 @@ phpeek-fpm-exporter serve --laravel-config sites.yaml
 
 **Old Format:**
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel "name=App,path=/var/www/html,appinfo=true,connection=redis,queues=default|emails" \
   --laravel "name=Admin,path=/var/www/admin,connection=database,queues=jobs"
 ```
@@ -154,7 +154,7 @@ laravel:
 
 Run:
 ```bash
-phpeek-fpm-exporter serve --laravel-config laravel-sites.yaml
+fpm-exporter serve --laravel-config laravel-sites.yaml
 ```
 
 ---
@@ -167,24 +167,24 @@ For quick, simple setups:
 
 ```bash
 # Just path (name defaults to "App")
-phpeek-fpm-exporter serve --laravel /var/www/html
+fpm-exporter serve --laravel /var/www/html
 
 # Name and path
-phpeek-fpm-exporter serve --laravel MyApp:/var/www/html
+fpm-exporter serve --laravel MyApp:/var/www/html
 ```
 
 ### 2. Environment Variables
 
 **Single Site:**
 ```bash
-export PHPEEK_LARAVEL_SITES='[{"name":"App","path":"/var/www/html","queues":{"redis":["default"]}}]'
-phpeek-fpm-exporter serve
+export CBOX_LARAVEL_SITES='[{"name":"App","path":"/var/www/html","queues":{"redis":["default"]}}]'
+fpm-exporter serve
 ```
 
 **Config File Path:**
 ```bash
-export PHPEEK_LARAVEL_CONFIG=/etc/phpeek/laravel-sites.yaml
-phpeek-fpm-exporter serve
+export CBOX_LARAVEL_CONFIG=/etc/cbox/laravel-sites.yaml
+fpm-exporter serve
 ```
 
 ### 3. Config File Reference
@@ -192,7 +192,7 @@ phpeek-fpm-exporter serve
 Best for complex setups:
 
 ```bash
-phpeek-fpm-exporter serve --laravel-config /etc/phpeek/sites.yaml
+fpm-exporter serve --laravel-config /etc/cbox/sites.yaml
 ```
 
 ### 4. Priority System
@@ -201,17 +201,17 @@ Multiple sources can be combined. Priority (highest first):
 
 1. `--laravel-site` flags (CLI)
 2. `--laravel` shorthand (CLI)
-3. `PHPEEK_LARAVEL_SITES` env var
+3. `CBOX_LARAVEL_SITES` env var
 4. `--laravel-config` file (CLI)
-5. `PHPEEK_LARAVEL_CONFIG` file (env)
+5. `CBOX_LARAVEL_CONFIG` file (env)
 
 **Example:**
 ```bash
 # Base config in file
-export PHPEEK_LARAVEL_CONFIG=base.yaml
+export CBOX_LARAVEL_CONFIG=base.yaml
 
 # Override specific site via CLI
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel-site name=App \
   --laravel-site path=/custom/path
 ```
@@ -224,11 +224,11 @@ This overrides the "App" site from `base.yaml` while keeping others.
 
 The new system validates:
 
-- ✅ **Required fields**: `name` and `path` are mandatory
-- ✅ **Path existence**: Validates path exists on filesystem
-- ✅ **Laravel detection**: Checks for `artisan` file in path
-- ✅ **Duplicate names**: Prevents duplicate site names
-- ✅ **Clear errors**: Descriptive error messages for all validation failures
+- **Required fields**: `name` and `path` are mandatory
+- **Path existence**: Validates path exists on filesystem
+- **Laravel detection**: Checks for `artisan` file in path
+- **Duplicate names**: Prevents duplicate site names
+- **Clear errors**: Descriptive error messages for all validation failures
 
 **Example Error:**
 ```
@@ -252,25 +252,25 @@ Error: Laravel site 'App' path does not contain artisan file: /var/www/html
 
 ### Old Dockerfile
 ```dockerfile
-CMD ["phpeek-fpm-exporter", "serve", \
+CMD ["fpm-exporter", "serve", \
      "--laravel", "name=App,path=/var/www/html,connection=redis,queues=default|emails"]
 ```
 
 ### New Dockerfile (Option 1: Shorthand)
 ```dockerfile
-CMD ["phpeek-fpm-exporter", "serve", "--laravel", "/var/www/html"]
+CMD ["fpm-exporter", "serve", "--laravel", "/var/www/html"]
 ```
 
 ### New Dockerfile (Option 2: Env Var)
 ```dockerfile
-ENV PHPEEK_LARAVEL_SITES='[{"name":"App","path":"/var/www/html","queues":{"redis":["default","emails"]}}]'
-CMD ["phpeek-fpm-exporter", "serve"]
+ENV CBOX_LARAVEL_SITES='[{"name":"App","path":"/var/www/html","queues":{"redis":["default","emails"]}}]'
+CMD ["fpm-exporter", "serve"]
 ```
 
 ### New Dockerfile (Option 3: Config File)
 ```dockerfile
-COPY laravel-sites.yaml /etc/phpeek/
-CMD ["phpeek-fpm-exporter", "serve", "--laravel-config", "/etc/phpeek/laravel-sites.yaml"]
+COPY laravel-sites.yaml /etc/cbox/
+CMD ["fpm-exporter", "serve", "--laravel-config", "/etc/cbox/laravel-sites.yaml"]
 ```
 
 ---
@@ -308,12 +308,12 @@ duplicate Laravel site name: App
 
 **Error:**
 ```
-failed to parse PHPEEK_LARAVEL_SITES: invalid character...
+failed to parse CBOX_LARAVEL_SITES: invalid character...
 ```
 
 **Solution:** Ensure JSON is properly formatted and quoted:
 ```bash
-export PHPEEK_LARAVEL_SITES='[{"name":"App","path":"/var/www/html"}]'
+export CBOX_LARAVEL_SITES='[{"name":"App","path":"/var/www/html"}]'
 #                             ^                                        ^
 #                             Single quotes around JSON
 ```
@@ -324,4 +324,4 @@ export PHPEEK_LARAVEL_SITES='[{"name":"App","path":"/var/www/html"}]'
 
 - [Configuration Reference](configuration) - Complete configuration guide
 - [Quickstart](quickstart) - Quick examples
-- [GitHub Issues](https://github.com/gophpeek/phpeek-fpm-exporter/issues) - Report problems
+- [GitHub Issues](https://github.com/cboxdk/fpm-exporter/issues) - Report problems

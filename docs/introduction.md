@@ -1,12 +1,12 @@
 ---
 title: "Introduction"
-description: "PHPeek PHP-FPM Exporter - Lightweight Prometheus exporter for PHP-FPM and Laravel applications"
+description: "Cbox FPM Exporter - Lightweight Prometheus exporter for PHP-FPM and Laravel applications"
 weight: 1
 ---
 
-# PHPeek PHP-FPM Exporter
+# Cbox FPM Exporter
 
-PHPeek PHP-FPM Exporter is a lightweight, Go-based Prometheus exporter for PHP-FPM and Laravel applications. It provides comprehensive metrics for monitoring PHP-FPM pools, Opcache statistics, and Laravel application state.
+Cbox FPM Exporter is a lightweight, Go-based Prometheus exporter for PHP-FPM and Laravel applications. It provides comprehensive metrics for monitoring PHP-FPM pools, Opcache statistics, and Laravel application state.
 
 ## Key Features
 
@@ -39,7 +39,7 @@ The exporter runs as a sidecar or standalone service, collecting metrics via:
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────┐
-│   Prometheus    │────▶│  PHPeek Exporter │────▶│   PHP-FPM   │
+│   Prometheus    │────▶│  Cbox Exporter   │────▶│   PHP-FPM   │
 │                 │     │    :9114         │     │   Pools     │
 └─────────────────┘     └──────────────────┘     └─────────────┘
                                │

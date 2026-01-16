@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/config"
 )
 
 func TestInit_JSONFormat(t *testing.T) {

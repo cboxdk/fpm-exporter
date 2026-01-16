@@ -20,7 +20,7 @@ The exporter collects Laravel metrics by executing Artisan commands:
 ### CLI
 
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel "name=MyApp,path=/var/www/html"
 ```
 

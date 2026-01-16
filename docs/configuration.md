@@ -1,12 +1,12 @@
 ---
 title: "Configuration"
-description: "Complete configuration reference for PHPeek PHP-FPM Exporter including CLI flags, environment variables, and YAML"
+description: "Complete configuration reference for Cbox FPM Exporter including CLI flags, environment variables, and YAML"
 weight: 4
 ---
 
 # Configuration
 
-PHPeek PHP-FPM Exporter supports three configuration methods with the following precedence:
+Cbox FPM Exporter supports three configuration methods with the following precedence:
 
 1. **CLI Flags** (highest priority)
 2. **Environment Variables**
@@ -15,7 +15,7 @@ PHPeek PHP-FPM Exporter supports three configuration methods with the following 
 ## CLI Flags
 
 ```bash
-phpeek-fpm-exporter serve [flags]
+fpm-exporter serve [flags]
 ```
 
 | Flag | Description | Default |
@@ -41,30 +41,30 @@ Parameters:
 Multiple sites:
 
 ```bash
-phpeek-fpm-exporter serve \
+fpm-exporter serve \
   --laravel "name=Site1,path=/var/www/site1,connection=redis,queues=default" \
   --laravel "name=Site2,path=/var/www/site2,connection=database,queues=jobs|emails"
 ```
 
 ## Environment Variables
 
-All environment variables use the `PHPEEK_` prefix:
+All environment variables use the `CBOX_` prefix:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PHPEEK_DEBUG` | Enable debug mode | `false` |
-| `PHPEEK_MONITOR_LISTEN_ADDR` | Metrics listen address | `:9114` |
-| `PHPEEK_MONITOR_ENABLE_JSON` | Enable JSON endpoint | `true` |
-| `PHPEEK_PHPFPM_ENABLED` | Enable PHP-FPM monitoring | `true` |
-| `PHPEEK_PHPFPM_AUTODISCOVER` | Auto-discover pools | `true` |
-| `PHPEEK_PHPFPM_RETRIES` | Discovery retry count | `5` |
-| `PHPEEK_PHPFPM_RETRY_DELAY` | Delay between retries (seconds) | `2` |
-| `PHPEEK_PHPFPM_POLL_INTERVAL` | Metrics poll interval | `1s` |
-| `PHPEEK_PHP_ENABLED` | Enable PHP monitoring | `true` |
-| `PHPEEK_PHP_BINARY` | PHP binary path | `php` |
-| `PHPEEK_LOGGING_LEVEL` | Log level | `info` |
-| `PHPEEK_LOGGING_FORMAT` | Log format (text, json) | `json` |
-| `PHPEEK_LOGGING_COLOR` | Enable colored output | `true` |
+| `CBOX_DEBUG` | Enable debug mode | `false` |
+| `CBOX_MONITOR_LISTEN_ADDR` | Metrics listen address | `:9114` |
+| `CBOX_MONITOR_ENABLE_JSON` | Enable JSON endpoint | `true` |
+| `CBOX_PHPFPM_ENABLED` | Enable PHP-FPM monitoring | `true` |
+| `CBOX_PHPFPM_AUTODISCOVER` | Auto-discover pools | `true` |
+| `CBOX_PHPFPM_RETRIES` | Discovery retry count | `5` |
+| `CBOX_PHPFPM_RETRY_DELAY` | Delay between retries (seconds) | `2` |
+| `CBOX_PHPFPM_POLL_INTERVAL` | Metrics poll interval | `1s` |
+| `CBOX_PHP_ENABLED` | Enable PHP monitoring | `true` |
+| `CBOX_PHP_BINARY` | PHP binary path | `php` |
+| `CBOX_LOGGING_LEVEL` | Log level | `info` |
+| `CBOX_LOGGING_FORMAT` | Log format (text, json) | `json` |
+| `CBOX_LOGGING_COLOR` | Enable colored output | `true` |
 
 ## YAML Configuration
 
@@ -109,7 +109,7 @@ laravel:
 Use with:
 
 ```bash
-phpeek-fpm-exporter serve --config /path/to/config.yaml
+fpm-exporter serve --config /path/to/config.yaml
 ```
 
 ## Manual Pool Configuration
@@ -185,7 +185,7 @@ laravel:
 ### Minimal (Auto-discover)
 
 ```bash
-phpeek-fpm-exporter serve
+fpm-exporter serve
 ```
 
 ### Production Setup
@@ -217,10 +217,10 @@ laravel:
 ### Development Setup
 
 ```bash
-PHPEEK_DEBUG=true \
-PHPEEK_LOGGING_LEVEL=debug \
-PHPEEK_LOGGING_FORMAT=text \
-phpeek-fpm-exporter serve \
+CBOX_DEBUG=true \
+CBOX_LOGGING_LEVEL=debug \
+CBOX_LOGGING_FORMAT=text \
+fpm-exporter serve \
   --laravel "name=Dev,path=/home/dev/app"
 ```
 

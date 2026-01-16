@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/config"
 )
 
 func TestParseShorthand(t *testing.T) {
@@ -308,12 +308,12 @@ func TestValidateSites(t *testing.T) {
 
 func TestParseLaravelSites_EnvVar(t *testing.T) {
 	// Save and restore original env vars
-	originalSites := os.Getenv("PHPEEK_LARAVEL_SITES")
+	originalSites := os.Getenv("CBOX_LARAVEL_SITES")
 	defer func() {
 		if originalSites != "" {
-			os.Setenv("PHPEEK_LARAVEL_SITES", originalSites)
+			os.Setenv("CBOX_LARAVEL_SITES", originalSites)
 		} else {
-			os.Unsetenv("PHPEEK_LARAVEL_SITES")
+			os.Unsetenv("CBOX_LARAVEL_SITES")
 		}
 	}()
 
@@ -332,7 +332,7 @@ func TestParseLaravelSites_EnvVar(t *testing.T) {
 		t.Fatalf("Failed to marshal test data: %v", err)
 	}
 
-	os.Setenv("PHPEEK_LARAVEL_SITES", string(jsonData))
+	os.Setenv("CBOX_LARAVEL_SITES", string(jsonData))
 
 	// Reset CLI flags
 	laravelShorthand = ""

@@ -1,19 +1,19 @@
 #!/bin/sh
 set -e
 
-# PHPeek PHP-FPM Exporter Installer
+# Cbox FPM Exporter Installer
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/gophpeek/phpeek-fpm-exporter/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/cboxdk/fpm-exporter/main/install.sh | sh
 #
 # With version pinning:
-#   curl -fsSL https://raw.githubusercontent.com/gophpeek/phpeek-fpm-exporter/main/install.sh | VERSION=v1.2.0 sh
+#   curl -fsSL https://raw.githubusercontent.com/cboxdk/fpm-exporter/main/install.sh | VERSION=v1.2.0 sh
 #
 # Custom install directory:
 #   curl -fsSL ... | INSTALL_DIR=/opt/bin sh
 
-REPO="gophpeek/phpeek-fpm-exporter"
-BINARY="phpeek-fpm-exporter"
+REPO="cboxdk/fpm-exporter"
+BINARY="fpm-exporter"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 VERSION="${VERSION:-latest}"
 

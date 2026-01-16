@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/config"
 )
 
 var logger *slog.Logger

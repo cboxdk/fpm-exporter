@@ -1,6 +1,6 @@
 ---
 title: "Advanced Usage"
-description: "Advanced configuration and deployment scenarios for PHPeek PHP-FPM Exporter"
+description: "Advanced configuration and deployment scenarios for Cbox FPM Exporter"
 weight: 20
 ---
 

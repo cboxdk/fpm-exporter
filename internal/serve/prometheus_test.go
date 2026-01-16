@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/logging"
+	"github.com/cboxdk/fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"

@@ -2,13 +2,13 @@ package metrics
 
 import (
 	"context"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/laravel"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/server"
+	"github.com/cboxdk/fpm-exporter/internal/laravel"
+	"github.com/cboxdk/fpm-exporter/internal/server"
 	"sync"
 	"time"
 
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/config"
-	"github.com/gophpeek/phpeek-fpm-exporter/internal/phpfpm"
+	"github.com/cboxdk/fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
 )
 
 type Listener func(*Metrics)
