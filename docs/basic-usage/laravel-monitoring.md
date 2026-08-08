@@ -20,8 +20,7 @@ The exporter collects Laravel metrics by executing Artisan commands:
 ### CLI
 
 ```bash
-fpm-exporter serve \
-  --laravel "name=MyApp,path=/var/www/html"
+fpm-exporter serve --laravel MyApp:/var/www/html
 ```
 
 ### YAML Config
@@ -39,7 +38,10 @@ Track queue sizes across connections and queues:
 ### Single Connection
 
 ```bash
---laravel "name=App,path=/var/www/html,connection=redis,queues=default|emails|notifications"
+fpm-exporter serve \
+  --laravel-site name=App \
+  --laravel-site path=/var/www/html \
+  --laravel-site queues.redis=default,emails,notifications
 ```
 
 ### Multiple Connections
@@ -70,6 +72,22 @@ laravel_queue_size{site="MyApp",connection="database",queue="notifications"} 0
 ## Application Info
 
 Exposes application metadata from `php artisan about`:
+
+```bash
+fpm-exporter serve \
+  --laravel-site name=MyApp \
+  --laravel-site path=/var/www/html \
+  --laravel-site appinfo=true
+```
+
+Or enable it in YAML:
+
+```yaml
+laravel:
+  - name: MyApp
+    path: /var/www/html
+    enable_app_info: true
+```
 
 ```text
 laravel_app_info{site="MyApp",version="11.0.0",env="production",php_version="8.3.14",debug_mode="false"} 1
@@ -201,9 +219,10 @@ count(laravel_debug_mode == 1)
 
 ### App Info Missing
 
-1. Check `php artisan about --json` works
-2. Verify PHP binary path is correct
-3. Check Laravel version supports `--json` flag
+1. Verify application info is enabled with `appinfo=true` or `enable_app_info: true`
+2. Check `php artisan about --json` works
+3. Verify PHP binary path is correct
+4. Check Laravel version supports `--json` flag
 
 ### Permission Issues
 
