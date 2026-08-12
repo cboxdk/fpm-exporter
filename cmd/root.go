@@ -22,9 +22,9 @@ var Version string
 var Config *config.Config
 
 var (
-	laravelShorthand   string
-	laravelSiteFlags   []string
-	laravelConfigFile  string
+	laravelShorthand  string
+	laravelSiteFlags  []string
+	laravelConfigFile string
 )
 
 var rootCmd = &cobra.Command{
