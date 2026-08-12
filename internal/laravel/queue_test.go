@@ -1,6 +1,7 @@
 package laravel
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -39,28 +40,28 @@ func TestGetQueueSizes(t *testing.T) {
 			// Create a temporary directory for testing
 			tempDir := t.TempDir()
 
-			result, err := GetQueueSizes(tempDir, "php", tt.queueMap)
+			result, err := GetQueueSizes(context.Background(), tempDir, "php", tt.queueMap)
 
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("GetQueueSizes() expected error but got none")
+					t.Errorf("GetQueueSizes(context.Background(), ) expected error but got none")
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("GetQueueSizes() unexpected error: %v", err)
+				t.Errorf("GetQueueSizes(context.Background(), ) unexpected error: %v", err)
 				return
 			}
 
 			if result == nil {
-				t.Errorf("GetQueueSizes() returned nil result")
+				t.Errorf("GetQueueSizes(context.Background(), ) returned nil result")
 				return
 			}
 
 			// For empty queue map, result should be empty
 			if len(tt.queueMap) == 0 && len(*result) != 0 {
-				t.Errorf("GetQueueSizes() expected empty result for empty queue map")
+				t.Errorf("GetQueueSizes(context.Background(), ) expected empty result for empty queue map")
 			}
 		})
 	}
@@ -87,7 +88,7 @@ exit 0`
 	}
 
 	// Use our mock PHP script
-	_, err = GetQueueSizes(tempDir, mockPhpPath, queueMap)
+	_, err = GetQueueSizes(context.Background(), tempDir, mockPhpPath, queueMap)
 
 	// We expect an error since our mock doesn't output valid JSON
 	// but we can check if the environment variable was set by looking at the error output
@@ -126,7 +127,7 @@ fi`
 	}
 
 	// Use our validator script - this should succeed if env var is set correctly
-	result, err := GetQueueSizes(tempDir, scriptPath, queueMap)
+	result, err := GetQueueSizes(context.Background(), tempDir, scriptPath, queueMap)
 
 	if err != nil {
 		t.Errorf("Expected no error with validator script, got: %v", err)

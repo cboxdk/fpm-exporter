@@ -2,6 +2,7 @@ package laravel
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -31,7 +32,7 @@ type QueueMetrics struct {
 
 type QueueSizes map[string]map[string]QueueMetrics
 
-func GetQueueSizes(appPath string, phpBinary string, queueMap map[string][]string) (*QueueSizes, error) {
+func GetQueueSizes(ctx context.Context, appPath string, phpBinary string, queueMap map[string][]string) (*QueueSizes, error) {
 	if len(queueMap) == 0 {
 		return &QueueSizes{}, nil
 	}
@@ -163,7 +164,7 @@ foreach (%[2]s as $q) {
 
 echo json_encode($sizes);`
 
-	cmd := exec.Command(phpBinary, "-d", "error_reporting=E_ALL & ~E_DEPRECATED", "artisan", "tinker", "--execute", script)
+	cmd := exec.CommandContext(ctx, phpBinary, "-d", "error_reporting=E_ALL & ~E_DEPRECATED", "artisan", "tinker", "--execute", script)
 	cmd.Dir = filepath.Clean(appPath)
 
 	// disable monitoring on scraping to prevent exhausting monitoring tools
@@ -181,6 +182,9 @@ echo json_encode($sizes);`
 
 	err := cmd.Run()
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("artisan tinker timed out: %w", ctx.Err())
+		}
 		return nil, fmt.Errorf("artisan tinker failed: %w\nOutput: %s", err, out.String())
 	}
 
