@@ -397,7 +397,7 @@ func TestPtr(t *testing.T) {
 	intPtr := ptr(intVal)
 
 	if intPtr == nil {
-		t.Errorf("Expected ptr to return non-nil pointer")
+		t.Fatalf("Expected ptr to return non-nil pointer")
 	}
 
 	if *intPtr != intVal {
@@ -409,7 +409,7 @@ func TestPtr(t *testing.T) {
 	stringPtr := ptr(stringVal)
 
 	if stringPtr == nil {
-		t.Errorf("Expected ptr to work with string")
+		t.Fatalf("Expected ptr to work with string")
 	}
 
 	if *stringPtr != stringVal {
@@ -420,7 +420,7 @@ func TestPtr(t *testing.T) {
 	float64Ptr := ptr(float64Val)
 
 	if float64Ptr == nil {
-		t.Errorf("Expected ptr to work with float64")
+		t.Fatalf("Expected ptr to work with float64")
 	}
 
 	if *float64Ptr != float64Val {

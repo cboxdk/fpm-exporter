@@ -42,7 +42,7 @@ func TestRootCommand_PersistentPreRunE(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp config file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer func() { _ = os.Remove(tempFile.Name()) }()
 
 	configContent := `
 php:
@@ -60,7 +60,7 @@ monitor:
 	if _, err := tempFile.WriteString(configContent); err != nil {
 		t.Fatalf("Failed to write config content: %v", err)
 	}
-	tempFile.Close()
+	_ = tempFile.Close()
 
 	// Reset viper for clean test
 	viper.Reset()
@@ -75,7 +75,7 @@ monitor:
 	testCmd.PersistentFlags().Bool("debug", false, "debug mode")
 
 	// Set the config file flag
-	testCmd.PersistentFlags().Set("config", tempFile.Name())
+	_ = testCmd.PersistentFlags().Set("config", tempFile.Name())
 
 	// Execute PersistentPreRunE
 	err = rootCmd.PersistentPreRunE(testCmd, []string{})
@@ -278,13 +278,13 @@ func TestRootCommand_LogLevelHandling(t *testing.T) {
 			testCmd.PersistentFlags().Bool("debug", false, "debug mode")
 
 			// Bind debug flag to viper
-			viper.BindPFlag("debug", testCmd.PersistentFlags().Lookup("debug"))
+			_ = viper.BindPFlag("debug", testCmd.PersistentFlags().Lookup("debug"))
 
 			if tt.flagLogLevel != "" {
-				testCmd.PersistentFlags().Set("log-level", tt.flagLogLevel)
+				_ = testCmd.PersistentFlags().Set("log-level", tt.flagLogLevel)
 			}
 			if tt.debugFlag {
-				testCmd.PersistentFlags().Set("debug", "true")
+				_ = testCmd.PersistentFlags().Set("debug", "true")
 			}
 
 			// Execute PersistentPreRunE
@@ -345,23 +345,20 @@ func TestInit(t *testing.T) {
 }
 
 // Helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || s[0:len(substr)] == substr || contains(s[1:], substr))
-}
 
 func TestRootCommand_ViperIntegration(t *testing.T) {
 	// Test that viper environment variables work
 	originalEnv := os.Getenv("CBOX_DEBUG")
 	defer func() {
 		if originalEnv == "" {
-			os.Unsetenv("CBOX_DEBUG")
+			_ = os.Unsetenv("CBOX_DEBUG")
 		} else {
-			os.Setenv("CBOX_DEBUG", originalEnv)
+			_ = os.Setenv("CBOX_DEBUG", originalEnv)
 		}
 	}()
 
 	// Set environment variable
-	os.Setenv("CBOX_DEBUG", "true")
+	_ = os.Setenv("CBOX_DEBUG", "true")
 
 	// Reset viper to pick up environment
 	viper.Reset()

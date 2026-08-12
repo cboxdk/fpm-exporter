@@ -2,6 +2,7 @@ package laravel
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cboxdk/fpm-exporter/internal/config"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
@@ -85,12 +87,32 @@ type AppInfo struct {
 	Livewire *map[string]string `json:"livewire,omitempty"`
 }
 
+// `artisan about` is expensive, so results are cached -- but only for a while.
+// A permanent cache meant that an app which was down when the exporter started
+// never reported app info again until the process was restarted, and a single
+// timeout poisoned the site for good.
+const (
+	appInfoTTL        = 5 * time.Minute
+	appInfoFailureTTL = 30 * time.Second
+)
+
+type appInfoEntry struct {
+	info      *AppInfo
+	expiresAt time.Time
+}
+
 var (
-	appInfoCache = make(map[string]*AppInfo)
+	appInfoCache = make(map[string]appInfoEntry)
 	cacheMutex   sync.RWMutex
 )
 
-func GetAppInfo(site config.LaravelConfig, phpBinary string) (*AppInfo, error) {
+func cacheAppInfo(key string, info *AppInfo, ttl time.Duration) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+	appInfoCache[key] = appInfoEntry{info: info, expiresAt: time.Now().Add(ttl)}
+}
+
+func GetAppInfo(ctx context.Context, site config.LaravelConfig, phpBinary string) (*AppInfo, error) {
 	if !site.EnableAppInfo {
 		return nil, nil
 	}
@@ -102,18 +124,18 @@ func GetAppInfo(site config.LaravelConfig, phpBinary string) (*AppInfo, error) {
 	cacheKey := filepath.Clean(site.Path)
 
 	cacheMutex.RLock()
-	info, ok := appInfoCache[cacheKey]
+	entry, ok := appInfoCache[cacheKey]
 	cacheMutex.RUnlock()
-	if ok {
-		if info == nil {
-			return nil, fmt.Errorf("app info was previously attempted but failed")
+	if ok && time.Now().Before(entry.expiresAt) {
+		if entry.info == nil {
+			return nil, fmt.Errorf("app info recently failed for %s, not retrying yet", cacheKey)
 		}
-		return info, nil
+		return entry.info, nil
 	}
 
 	logging.L().Debug("Cbox Uncached app info. Calling artisan about", "path", site.Path)
 
-	cmd := exec.Command(phpBinary, "-d", "error_reporting=E_ALL & ~E_DEPRECATED", "artisan", "about", "--json")
+	cmd := exec.CommandContext(ctx, phpBinary, "-d", "error_reporting=E_ALL & ~E_DEPRECATED", "artisan", "about", "--json")
 
 	// disable monitoring on scraping to prevent exhausting monitoring tools
 	cmd.Env = os.Environ()
@@ -132,23 +154,20 @@ func GetAppInfo(site config.LaravelConfig, phpBinary string) (*AppInfo, error) {
 
 	err := cmd.Run()
 	if err != nil {
-		cacheMutex.Lock()
-		appInfoCache[cacheKey] = nil
-		cacheMutex.Unlock()
+		cacheAppInfo(cacheKey, nil, appInfoFailureTTL)
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("artisan about timed out: %w", ctx.Err())
+		}
 		return nil, fmt.Errorf("artisan about failed: %w\nOutput: %s", err, out.String())
 	}
 
 	var parsed AppInfo
 	if err := json.Unmarshal(out.Bytes(), &parsed); err != nil {
-		cacheMutex.Lock()
-		appInfoCache[cacheKey] = nil
-		cacheMutex.Unlock()
+		cacheAppInfo(cacheKey, nil, appInfoFailureTTL)
 		return nil, fmt.Errorf("failed to parse output: %w\nOutput: %s", err, out.String())
 	}
 
-	cacheMutex.Lock()
-	appInfoCache[cacheKey] = &parsed
-	cacheMutex.Unlock()
+	cacheAppInfo(cacheKey, &parsed, appInfoTTL)
 
 	return &parsed, nil
 }

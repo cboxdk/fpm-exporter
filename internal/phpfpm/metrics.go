@@ -85,7 +85,7 @@ func GetMetrics(ctx context.Context, cfg *config.Config) (map[string]*Result, er
 			logging.L().Debug("Cbox failed to dial FastCGI", "error", err)
 			continue
 		}
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 
 		env := map[string]string{
 			"SCRIPT_FILENAME": path,
@@ -101,7 +101,7 @@ func GetMetrics(ctx context.Context, cfg *config.Config) (map[string]*Result, er
 			logging.L().Debug("Cbox fcgi GET failed", "error", err)
 			continue
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		var pool Pool
 		err = fcgx.ReadJSON(resp, &pool)
@@ -190,7 +190,7 @@ func GetMetricsForPool(ctx context.Context, pool config.FPMPoolConfig) (*Result,
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial FastCGI: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	env := map[string]string{
 		"SCRIPT_FILENAME": path,
@@ -204,7 +204,7 @@ func GetMetricsForPool(ctx context.Context, pool config.FPMPoolConfig) (*Result,
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var poolData Pool
 	err = fcgx.ReadJSON(resp, &poolData)

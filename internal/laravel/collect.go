@@ -21,13 +21,24 @@ func Collect(ctx context.Context, cfg *config.Config) (map[string]LaravelMetrics
 			php = site.PHPConfig.Binary
 		}
 
-		queues, err := GetQueueSizes(site.Path, php, site.Queues)
+		// Booting Laravel can hang on an unreachable Redis or a locked table.
+		// Without a bound, the artisan call outlives the scrape it belongs to
+		// and requests pile up behind it.
+		timeout := site.Timeout
+		if timeout <= 0 {
+			timeout = config.DefaultLaravelTimeout
+		}
+		siteCtx, cancel := context.WithTimeout(ctx, timeout)
+
+		queues, err := GetQueueSizes(siteCtx, site.Path, php, site.Queues)
 		if err != nil {
+			cancel()
 			errors["laravel:"+site.Name] = err.Error()
 			continue
 		}
 
-		info, err := GetAppInfo(site, php)
+		info, err := GetAppInfo(siteCtx, site, php)
+		cancel()
 		if err != nil {
 			errors["laravel:"+site.Name+":info"] = err.Error()
 		}

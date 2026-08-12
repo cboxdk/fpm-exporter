@@ -18,7 +18,7 @@ func TestInit_JSONFormat(t *testing.T) {
 
 	defer func() {
 		os.Stdout = oldStdout
-		w.Close()
+		_ = w.Close()
 	}()
 
 	cfg := config.LoggingBlock{
@@ -42,11 +42,11 @@ func TestInit_JSONFormat(t *testing.T) {
 	// Test logging
 	logger.Debug("test debug message")
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var output bytes.Buffer
-	output.ReadFrom(r)
+	_, _ = output.ReadFrom(r)
 
 	outputStr := output.String()
 	if !strings.Contains(outputStr, "test debug message") {

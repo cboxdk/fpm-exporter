@@ -294,8 +294,8 @@ echo "Zend Engine v4.2.10, Copyright (c) Zend Technologies"
 
 	// Set PATH to include our mock binary
 	originalPath := os.Getenv("PATH")
-	os.Setenv("PATH", tempDir+":"+originalPath)
-	defer os.Setenv("PATH", originalPath)
+	_ = os.Setenv("PATH", tempDir+":"+originalPath)
+	defer func() { _ = os.Setenv("PATH", originalPath) }()
 
 	// Test finding matching CLI binary
 	cliBinary, err := findMatchingCliBinary(mockFmpPath)
@@ -422,8 +422,8 @@ func TestFindMatchingCliBinary_VersionParsing(t *testing.T) {
 
 				// Set PATH to include our mock binary
 				originalPath := os.Getenv("PATH")
-				os.Setenv("PATH", tempDir+":"+originalPath)
-				defer os.Setenv("PATH", originalPath)
+				_ = os.Setenv("PATH", tempDir+":"+originalPath)
+				defer func() { _ = os.Setenv("PATH", originalPath) }()
 			}
 
 			cliBinary, err := findMatchingCliBinary(mockFmpPath)

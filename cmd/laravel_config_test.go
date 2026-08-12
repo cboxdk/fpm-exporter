@@ -378,9 +378,9 @@ func TestParseLaravelSites_EnvVar(t *testing.T) {
 	originalSites := os.Getenv("CBOX_LARAVEL_SITES")
 	defer func() {
 		if originalSites != "" {
-			os.Setenv("CBOX_LARAVEL_SITES", originalSites)
+			_ = os.Setenv("CBOX_LARAVEL_SITES", originalSites)
 		} else {
-			os.Unsetenv("CBOX_LARAVEL_SITES")
+			_ = os.Unsetenv("CBOX_LARAVEL_SITES")
 		}
 	}()
 
@@ -399,7 +399,7 @@ func TestParseLaravelSites_EnvVar(t *testing.T) {
 		t.Fatalf("Failed to marshal test data: %v", err)
 	}
 
-	os.Setenv("CBOX_LARAVEL_SITES", string(jsonData))
+	_ = os.Setenv("CBOX_LARAVEL_SITES", string(jsonData))
 
 	// Reset CLI flags
 	laravelShorthand = ""

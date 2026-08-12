@@ -77,6 +77,7 @@ All environment variables use the `CBOX_` prefix:
 | `CBOX_DEBUG` | Enable debug mode | `false` |
 | `CBOX_MONITOR_LISTEN_ADDR` | Metrics listen address | `:9114` |
 | `CBOX_MONITOR_ENABLE_JSON` | Enable JSON endpoint | `true` |
+| `CBOX_MONITOR_SCRAPE_TIMEOUT` | Budget for one collection | `15s` |
 | `CBOX_PHPFPM_ENABLED` | Enable PHP-FPM monitoring | `true` |
 | `CBOX_PHPFPM_AUTODISCOVER` | Auto-discover pools | `true` |
 | `CBOX_PHPFPM_RETRIES` | Discovery retry count | `5` |
@@ -112,6 +113,7 @@ logging:
 monitor:
   listen_addr: ":9114"
   enable_json: true
+  scrape_timeout: 15s   # Keep below Prometheus' own scrape_timeout
 
 php:
   enabled: true
@@ -129,6 +131,7 @@ laravel:
   - name: App
     path: /var/www/html
     enable_app_info: true
+    timeout: 10s        # Per-site limit on each artisan call
     queues:
       redis:
         - default

@@ -297,29 +297,29 @@ func validateSites(sites []config.LaravelConfig) error {
 	for i, site := range sites {
 		// Ensure name is set
 		if site.Name == "" {
-			return fmt.Errorf("Laravel site at index %d missing name", i)
+			return fmt.Errorf("laravel site at index %d missing name", i)
 		}
 
 		// Check for duplicate names
 		if seenNames[site.Name] {
-			return fmt.Errorf("duplicate Laravel site name: %s", site.Name)
+			return fmt.Errorf("duplicate laravel site name: %s", site.Name)
 		}
 		seenNames[site.Name] = true
 
 		// Validate path is set
 		if site.Path == "" {
-			return fmt.Errorf("Laravel site '%s' missing path", site.Name)
+			return fmt.Errorf("laravel site %q missing path", site.Name)
 		}
 
 		// Validate path exists
 		if _, err := os.Stat(site.Path); os.IsNotExist(err) {
-			return fmt.Errorf("Laravel site '%s' path does not exist: %s", site.Name, site.Path)
+			return fmt.Errorf("laravel site %q path does not exist: %s", site.Name, site.Path)
 		}
 
 		// Check if path looks like a Laravel app (has artisan)
 		artisanPath := filepath.Join(site.Path, "artisan")
 		if _, err := os.Stat(artisanPath); os.IsNotExist(err) {
-			return fmt.Errorf("Laravel site '%s' path does not contain artisan file: %s", site.Name, site.Path)
+			return fmt.Errorf("laravel site %q path does not contain artisan file: %s", site.Name, site.Path)
 		}
 	}
 
