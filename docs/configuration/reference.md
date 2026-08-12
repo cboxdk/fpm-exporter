@@ -27,6 +27,7 @@ fpm-exporter serve [flags]
 | `--laravel` | Laravel site shorthand (`path` or `name:path`, single site) | - |
 | `--laravel-site` | Laravel site property (`key=value`, repeatable) | - |
 | `--laravel-config` | Path to a Laravel sites YAML file | - |
+| `--web.listen-address` | Address to serve metrics on (overrides `monitor.listen_addr`) | - |
 
 ### Laravel Flag Format
 

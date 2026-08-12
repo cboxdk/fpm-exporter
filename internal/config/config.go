@@ -1,8 +1,12 @@
 package config
 
 import (
-	"github.com/spf13/viper"
+	"fmt"
+	"strings"
+
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -81,6 +85,27 @@ type MonitorConfig struct {
 	ScrapeTimeout time.Duration `mapstructure:"scrape_timeout"`
 }
 
+// envBoundKeys are the configuration keys settable through CBOX_* environment
+// variables. Each one is covered by a test asserting the documented variable
+// actually lands, so the table here and the table in the docs cannot drift.
+var envBoundKeys = []string{
+	"debug",
+	"logging.level",
+	"logging.format",
+	"logging.color",
+	"monitor.listen_addr",
+	"monitor.enable_json",
+	"monitor.scrape_timeout",
+	"php.enabled",
+	"php.binary",
+	"php.ini_path",
+	"phpfpm.enabled",
+	"phpfpm.autodiscover",
+	"phpfpm.retries",
+	"phpfpm.retry_delay",
+	"phpfpm.poll_interval",
+}
+
 func Load() (*Config, error) {
 	viper.SetDefault("debug", false)
 
@@ -107,6 +132,18 @@ func Load() (*Config, error) {
 
 	viper.SetEnvPrefix("CBOX")
 	viper.AutomaticEnv()
+
+	// AutomaticEnv alone looks up the nested key monitor.listen_addr as
+	// CBOX_MONITOR.LISTEN_ADDR, which is not a settable variable name -- so
+	// every documented nested variable silently did nothing. The replacer maps
+	// the dots, and the explicit binds make each key work through Unmarshal,
+	// which AutomaticEnv does not reliably do on its own.
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	for _, key := range envBoundKeys {
+		if err := viper.BindEnv(key); err != nil {
+			return nil, fmt.Errorf("failed to bind %s: %w", key, err)
+		}
+	}
 
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {

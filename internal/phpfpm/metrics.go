@@ -151,17 +151,25 @@ func collectPool(ctx context.Context, poolCfg config.FPMPoolConfig) PoolOutcome 
 	if conf, err := ParseFPMConfig(poolCfg.Binary, poolCfg.ConfigPath); err == nil {
 		for section, values := range conf.Pools {
 			if strings.EqualFold(section, pool.Name) {
-				pool.Config = values
+				pool.Config = exportableConfig(values)
 			}
 		}
-		for k, v := range conf.Global {
-			result.Global[k] = v
-		}
+		result.Global = exportableConfig(conf.Global)
 	}
 
 	// Process counting and CPU/mem parsing from actual process list
 	var totalCPU, totalMem float64
 	var count int
+
+	// PHP-FPM reports the full request URI of each worker, query string
+	// included -- on a real site that is a rolling sample of production URLs
+	// with their tokens in them, and /json republishes it unauthenticated. The
+	// path is enough for the filter below and for debugging.
+	for i := range pool.Processes {
+		if q := strings.IndexByte(pool.Processes[i].RequestURI, '?'); q >= 0 {
+			pool.Processes[i].RequestURI = pool.Processes[i].RequestURI[:q]
+		}
+	}
 	var activeCount, idleCount int64
 
 	for _, proc := range pool.Processes {
@@ -173,9 +181,11 @@ func collectPool(ctx context.Context, poolCfg config.FPMPoolConfig) PoolOutcome 
 			idleCount++
 		}
 
-		// CPU/memory calculation (exclude status and opcache requests)
+		// CPU/memory calculation, excluding the exporter's own traffic: the
+		// status call and the opcache probe. Counting those skews the averages
+		// worst on idle pools, where they are most of the traffic.
 		if !strings.HasPrefix(proc.RequestURI, poolCfg.StatusPath) &&
-			!strings.HasPrefix(proc.RequestURI, "/opcache-status-") {
+			!strings.HasPrefix(proc.RequestURI, "/"+opcacheScriptPrefix) {
 
 			totalCPU += float64(proc.LastRequestCPU)
 			totalMem += float64(proc.LastRequestMemory)
@@ -218,6 +228,38 @@ func collectPool(ctx context.Context, poolCfg config.FPMPoolConfig) PoolOutcome 
 
 	return outcome
 
+}
+
+// exportedConfigKeys are the only pool-config settings that leave this process.
+// `php-fpm -tt` dumps the effective configuration, which routinely carries
+// secrets -- env[DB_PASSWORD], env[APP_KEY], php_admin_value[...] -- and the
+// whole map used to be serialised on the unauthenticated /json endpoint. These
+// eleven are exactly the keys the collector turns into metrics.
+var exportedConfigKeys = map[string]bool{
+	"pm.max_children":           true,
+	"pm.max_requests":           true,
+	"pm.max_spare_servers":      true,
+	"pm.max_spawn_rate":         true,
+	"pm.min_spare_servers":      true,
+	"pm.process_idle_timeout":   true,
+	"pm.start_servers":          true,
+	"request_slowlog_timeout":   true,
+	"request_terminate_timeout": true,
+	"rlimit_core":               true,
+	"rlimit_files":              true,
+}
+
+// exportableConfig copies through only the settings we publish. An allow-list,
+// not a deny-list: a new PHP-FPM directive holding a credential must not become
+// a leak because nobody remembered to add it to a block list.
+func exportableConfig(values map[string]string) map[string]string {
+	exportable := make(map[string]string, len(exportedConfigKeys))
+	for key, value := range values {
+		if exportedConfigKeys[strings.ToLower(strings.TrimSpace(key))] {
+			exportable[key] = value
+		}
+	}
+	return exportable
 }
 
 // poolName prefers the configured name and falls back to the socket, so a pool

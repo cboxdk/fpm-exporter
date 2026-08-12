@@ -427,3 +427,39 @@ sleep 0.1
 		}
 	}
 }
+
+// `php-fpm -tt` dumps the effective configuration, which routinely carries
+// secrets. The whole map used to be attached to the pool and serialised on the
+// unauthenticated /json endpoint.
+func TestExportableConfigDropsEverythingNotPublished(t *testing.T) {
+	values := map[string]string{
+		"pm.max_children":            "50",
+		"request_terminate_timeout":  "120s",
+		"rlimit_files":               "1024",
+		"env[DB_PASSWORD]":           "sup3rs3cret",
+		"env[APP_KEY]":               "base64:secret",
+		"php_admin_value[error_log]": "/var/log/app.log",
+		"listen.acl_users":           "www-data",
+		"user":                       "www-data",
+		"chdir":                      "/var/www",
+		"access.log":                 "/var/log/access.log",
+	}
+
+	exported := exportableConfig(values)
+
+	for _, key := range []string{"pm.max_children", "request_terminate_timeout", "rlimit_files"} {
+		if _, ok := exported[key]; !ok {
+			t.Errorf("Expected %s to be exported: it is emitted as a metric", key)
+		}
+	}
+
+	for key, value := range exported {
+		if !exportedConfigKeys[key] {
+			t.Errorf("Exported an unpublished setting: %s = %s", key, value)
+		}
+	}
+
+	if len(exported) != 3 {
+		t.Errorf("Expected exactly the 3 published keys, got %d: %v", len(exported), exported)
+	}
+}
