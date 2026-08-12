@@ -1,7 +1,7 @@
 ---
 title: "Migration Guide"
 description: "Migrate from old Laravel configuration format to new improved syntax"
-weight: 30
+weight: 2
 ---
 
 # Migration Guide: Laravel Configuration
@@ -322,6 +322,6 @@ export CBOX_LARAVEL_SITES='[{"name":"App","path":"/var/www/html"}]'
 
 ## Getting Help
 
-- [Configuration Reference](configuration) - Complete configuration guide
-- [Quickstart](quickstart) - Quick examples
+- [Configuration Reference](../configuration/reference) - Complete configuration guide
+- [Quickstart](../quickstart) - Quick examples
 - [GitHub Issues](https://github.com/cboxdk/fpm-exporter/issues) - Report problems

@@ -1,7 +1,7 @@
 ---
 title: "Installation"
 description: "Download and install Cbox FPM Exporter on Linux, macOS, Docker, or Kubernetes"
-weight: 2
+weight: 1
 ---
 
 # Installation
@@ -70,51 +70,20 @@ Built binaries are placed in `build/`:
 - `build/fpm-exporter-darwin-amd64`
 - `build/fpm-exporter-darwin-arm64`
 
-## Docker
+## Containers
 
-Run alongside your PHP-FPM container:
+There is no published container image yet. To run the exporter in a container,
+copy a release binary into your own image:
 
-```bash
-docker run -d \
-  --name fpm-exporter \
-  -p 9114:9114 \
-  -v /var/run/php-fpm.sock:/var/run/php-fpm.sock \
-  cboxdk/fpm-exporter:latest serve
+```dockerfile
+FROM alpine:3.21
+COPY fpm-exporter-linux-amd64 /usr/local/bin/fpm-exporter
+ENTRYPOINT ["/usr/local/bin/fpm-exporter", "serve"]
 ```
 
-## Kubernetes
-
-Deploy as a sidecar container in your PHP-FPM pod:
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: php-app
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "9114"
-spec:
-  containers:
-    - name: php-fpm
-      image: php:8.3-fpm
-      volumeMounts:
-        - name: fpm-socket
-          mountPath: /var/run
-
-    - name: fpm-exporter
-      image: cboxdk/fpm-exporter:latest
-      args: ["serve"]
-      ports:
-        - containerPort: 9114
-      volumeMounts:
-        - name: fpm-socket
-          mountPath: /var/run
-
-  volumes:
-    - name: fpm-socket
-      emptyDir: {}
-```
+The binary is static (`CGO_ENABLED=0`), so a scratch or distroless base works
+too. See [Kubernetes Deployment](../advanced-usage/kubernetes) for running it as
+a sidecar next to PHP-FPM.
 
 ## Systemd Service
 
@@ -159,5 +128,5 @@ curl http://localhost:9114/metrics
 
 ## Next Steps
 
-- [Quickstart](quickstart) - Configure and run your first scrape
-- [Configuration](configuration) - Customize for your environment
+- [Quickstart](../quickstart) - Configure and run your first scrape
+- [Configuration](../configuration/reference) - Customize for your environment
