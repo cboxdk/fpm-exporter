@@ -1,7 +1,7 @@
 ---
-title: "Metrics Reference"
+title: "Metrics"
 description: "Complete reference of all Prometheus metrics exported by Cbox FPM Exporter"
-weight: 5
+weight: 1
 ---
 
 # Metrics Reference
@@ -182,5 +182,5 @@ To control metric cardinality:
 
 ## Next Steps
 
-- [Alerting](advanced-usage/alerting) - Setting up alerts
-- [Grafana Dashboards](advanced-usage/grafana) - Visualization setup
+- [Alerting](../advanced-usage/alerting) - Setting up alerts
+- [Grafana Dashboards](../advanced-usage/grafana) - Visualization setup

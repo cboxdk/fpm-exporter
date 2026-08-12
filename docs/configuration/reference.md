@@ -1,7 +1,7 @@
 ---
-title: "Configuration"
+title: "Reference"
 description: "Complete configuration reference for Cbox FPM Exporter including CLI flags, environment variables, and YAML"
-weight: 4
+weight: 1
 ---
 
 # Configuration
@@ -306,5 +306,5 @@ laravel:
 
 ## Next Steps
 
-- [Metrics Reference](metrics-reference) - Understanding exported metrics
-- [Laravel Monitoring](basic-usage/laravel-monitoring) - Detailed Laravel setup
+- [Metrics Reference](../reference/metrics) - Understanding exported metrics
+- [Laravel Monitoring](../basic-usage/laravel-monitoring) - Detailed Laravel setup

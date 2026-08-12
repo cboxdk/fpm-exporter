@@ -162,6 +162,6 @@ cgi-fcgi -bind -connect /var/run/php-fpm.sock
 
 ## Next Steps
 
-- [Configuration](configuration) - Full configuration reference
-- [Metrics Reference](metrics-reference) - All available metrics
+- [Configuration](configuration/reference) - Full configuration reference
+- [Metrics Reference](reference/metrics) - All available metrics
 - [Laravel Integration](basic-usage/laravel-monitoring) - Detailed Laravel setup

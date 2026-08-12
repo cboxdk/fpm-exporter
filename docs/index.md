@@ -50,9 +50,12 @@ The exporter runs as a sidecar or standalone service, collecting metrics via:
                         └─────────────┘
 ```
 
-## Quick Links
+## Documentation
 
-- [Installation](installation) - Download and install the exporter
 - [Quickstart](quickstart) - Get running in 5 minutes
-- [Configuration Reference](configuration) - All configuration options
-- [Metrics Reference](metrics-reference) - Complete list of exported metrics
+- [Requirements](requirements) - What the exporter needs on the host
+- [Getting Started](getting-started/) - Installation and migration from older config formats
+- [Basic Usage](basic-usage/) - PHP-FPM, Laravel and Opcache monitoring
+- [Configuration](configuration/) - Every flag, environment variable and YAML key
+- [Advanced Usage](advanced-usage/) - Alerting, Grafana and Kubernetes
+- [Reference](reference/) - Complete metrics reference

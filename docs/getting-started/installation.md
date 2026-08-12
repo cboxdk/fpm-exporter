@@ -1,7 +1,7 @@
 ---
 title: "Installation"
 description: "Download and install Cbox FPM Exporter on Linux, macOS, Docker, or Kubernetes"
-weight: 2
+weight: 1
 ---
 
 # Installation
@@ -159,5 +159,5 @@ curl http://localhost:9114/metrics
 
 ## Next Steps
 
-- [Quickstart](quickstart) - Configure and run your first scrape
-- [Configuration](configuration) - Customize for your environment
+- [Quickstart](../quickstart) - Configure and run your first scrape
+- [Configuration](../configuration/reference) - Customize for your environment
