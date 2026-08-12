@@ -225,7 +225,7 @@ func TestStartPrometheusServer_MetricsEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get metrics: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -254,7 +254,7 @@ func TestStartPrometheusServer_JSONEndpoint(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockMetrics)
+		_ = json.NewEncoder(w).Encode(mockMetrics)
 	})
 
 	server := httptest.NewServer(mux)
@@ -265,7 +265,7 @@ func TestStartPrometheusServer_JSONEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get JSON: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -541,9 +541,8 @@ func TestPrometheusCollector_Collect_ConfigEdgeCases(t *testing.T) {
 	ch2 := make(chan prometheus.Metric, 50)
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
-				// Expected to panic with nil config, this is acceptable
-			}
+			// A nil config may panic here; that is acceptable for this test.
+			_ = recover()
 			close(ch2)
 		}()
 		nilCollector.Collect(ch2)

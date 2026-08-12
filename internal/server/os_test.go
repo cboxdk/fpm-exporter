@@ -157,17 +157,17 @@ func TestDetectSystem_Caching(t *testing.T) {
 func TestDetectNodeType(t *testing.T) {
 	// Save original environment
 	originalKubeHost := os.Getenv("KUBERNETES_SERVICE_HOST")
-	defer os.Setenv("KUBERNETES_SERVICE_HOST", originalKubeHost)
+	defer func() { _ = os.Setenv("KUBERNETES_SERVICE_HOST", originalKubeHost) }()
 
 	// Test Kubernetes detection
-	os.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+	_ = os.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
 	nodeType := detectNodeType()
 	if nodeType != NodeKubernetes {
 		t.Errorf("Expected NodeKubernetes when KUBERNETES_SERVICE_HOST is set")
 	}
 
 	// Test without Kubernetes environment
-	os.Unsetenv("KUBERNETES_SERVICE_HOST")
+	_ = os.Unsetenv("KUBERNETES_SERVICE_HOST")
 	nodeType = detectNodeType()
 
 	// Should be one of the valid node types
@@ -272,14 +272,14 @@ func TestDetectNodeType_FileSystemConditions(t *testing.T) {
 	originalKubeHost := os.Getenv("KUBERNETES_SERVICE_HOST")
 	defer func() {
 		if originalKubeHost == "" {
-			os.Unsetenv("KUBERNETES_SERVICE_HOST")
+			_ = os.Unsetenv("KUBERNETES_SERVICE_HOST")
 		} else {
-			os.Setenv("KUBERNETES_SERVICE_HOST", originalKubeHost)
+			_ = os.Setenv("KUBERNETES_SERVICE_HOST", originalKubeHost)
 		}
 	}()
 
 	// Test without Kubernetes environment
-	os.Unsetenv("KUBERNETES_SERVICE_HOST")
+	_ = os.Unsetenv("KUBERNETES_SERVICE_HOST")
 	nodeType := detectNodeType()
 
 	// Should return one of the valid node types
@@ -295,14 +295,14 @@ func TestDetectNodeType_FileSystemConditions(t *testing.T) {
 	}
 
 	// Test with Kubernetes environment set
-	os.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+	_ = os.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
 	nodeType = detectNodeType()
 	if nodeType != NodeKubernetes {
 		t.Errorf("Expected NodeKubernetes when KUBERNETES_SERVICE_HOST is set, got: %s", nodeType)
 	}
 
 	// Test with empty Kubernetes environment (should NOT be detected as k8s)
-	os.Setenv("KUBERNETES_SERVICE_HOST", "")
+	_ = os.Setenv("KUBERNETES_SERVICE_HOST", "")
 	nodeType = detectNodeType()
 	// Empty string means the env var is set but empty, which our code treats as set
 	if nodeType != NodePhysical {
@@ -315,21 +315,21 @@ func TestDetectNodeType_EdgeCases(t *testing.T) {
 	originalKubeHost := os.Getenv("KUBERNETES_SERVICE_HOST")
 	defer func() {
 		if originalKubeHost == "" {
-			os.Unsetenv("KUBERNETES_SERVICE_HOST")
+			_ = os.Unsetenv("KUBERNETES_SERVICE_HOST")
 		} else {
-			os.Setenv("KUBERNETES_SERVICE_HOST", originalKubeHost)
+			_ = os.Setenv("KUBERNETES_SERVICE_HOST", originalKubeHost)
 		}
 	}()
 
 	// Test with empty KUBERNETES_SERVICE_HOST
-	os.Setenv("KUBERNETES_SERVICE_HOST", "")
+	_ = os.Setenv("KUBERNETES_SERVICE_HOST", "")
 	nodeType := detectNodeType()
 	if nodeType == NodeKubernetes {
 		t.Errorf("Expected non-Kubernetes node type with empty KUBERNETES_SERVICE_HOST")
 	}
 
 	// Unset environment variable
-	os.Unsetenv("KUBERNETES_SERVICE_HOST")
+	_ = os.Unsetenv("KUBERNETES_SERVICE_HOST")
 	nodeType = detectNodeType()
 
 	// Should not panic and should return a valid node type
@@ -396,7 +396,7 @@ func TestConcurrentDetectSystem(t *testing.T) {
 	// All should be non-nil
 	for i, d := range data {
 		if d == nil {
-			t.Errorf("Result %d should not be nil", i)
+			t.Fatalf("Result %d should not be nil", i)
 		}
 		if d.SystemInfo == nil {
 			t.Errorf("Result %d SystemInfo should not be nil", i)

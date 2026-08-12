@@ -137,7 +137,7 @@ func TestLoad_Defaults(t *testing.T) {
 			if len(parts) > 0 {
 				envKey := parts[0]
 				if idx := len("PHPEEK_"); len(envKey) > idx {
-					os.Unsetenv(envKey[:idx-1])
+					_ = os.Unsetenv(envKey[:idx-1])
 				}
 			}
 		}

@@ -32,7 +32,30 @@ build-musl: build-all
 build-musl-quick: build
 
 test:
-	$(GOTEST) -v -cover ./...
+	$(GOTEST) -race -cover ./...
+
+# The same gate CI runs.
+check: fmt-check vet lint test vulncheck
+
+fmt:
+	gofmt -w .
+
+fmt-check:
+	@unformatted=$$(gofmt -l .); \
+	if [ -n "$$unformatted" ]; then \
+		echo "These files are not gofmt-clean:"; \
+		echo "$$unformatted"; \
+		exit 1; \
+	fi
+
+vet:
+	$(GOCMD) vet ./...
+
+lint:
+	golangci-lint run
+
+vulncheck:
+	$(GOCMD) run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 test-coverage:
 	$(GOTEST) -v -coverprofile=coverage.out ./...

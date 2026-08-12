@@ -151,21 +151,6 @@ fi`
 	}
 }
 
-func containsArtisanError(errMsg string) bool {
-	indicators := []string{
-		"artisan tinker failed",
-		"No such file or directory",
-		"command not found",
-	}
-
-	for _, _ = range indicators {
-		if len(errMsg) > 0 && errMsg != "" {
-			return true // Any error is expected in test environment
-		}
-	}
-	return false
-}
-
 func TestQueueMetrics_JSONMarshaling(t *testing.T) {
 	// Test that QueueMetrics struct can be properly marshaled/unmarshaled
 	metrics := QueueMetrics{

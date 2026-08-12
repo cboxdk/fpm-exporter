@@ -213,10 +213,7 @@ func (pc *PrometheusCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func parseConfigValue(val string) (float64, bool) {
-	val = strings.TrimSpace(val)
-	if strings.HasSuffix(val, "s") {
-		val = strings.TrimSuffix(val, "s")
-	}
+	val = strings.TrimSuffix(strings.TrimSpace(val), "s")
 	f, err := strconv.ParseFloat(val, 64)
 	if err != nil {
 		return 0, false

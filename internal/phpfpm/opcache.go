@@ -109,7 +109,7 @@ func GetOpcacheStatus(ctx context.Context, cfg config.FPMPoolConfig) (*OpcacheSt
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial FPM: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	scriptPath := tmpPath
 	env := map[string]string{
@@ -123,7 +123,7 @@ func GetOpcacheStatus(ctx context.Context, cfg config.FPMPoolConfig) (*OpcacheSt
 	if err != nil {
 		return nil, fmt.Errorf("fcgi GET failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := fcgx.ReadBody(resp)
 	if err != nil {
