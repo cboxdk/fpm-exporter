@@ -2,7 +2,11 @@ package laravel
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/cboxdk/fpm-exporter/internal/config"
 )
@@ -191,5 +195,79 @@ func TestCollect_PHPBinarySelection(t *testing.T) {
 
 	if len(errors) != 2 {
 		t.Errorf("Expected 2 errors, got %d", len(errors))
+	}
+}
+
+// Each site boots its own PHP process, so collecting them in sequence made a
+// scrape cost the sum of every site's boot time.
+func TestCollect_RunsSitesConcurrently(t *testing.T) {
+	const (
+		sites     = 4
+		sleepFor  = 300 * time.Millisecond
+		tolerance = 3 * sleepFor // sequential would be 4x sleepFor
+	)
+
+	dir := t.TempDir()
+	fakePHP := filepath.Join(dir, "fake-php")
+	script := "#!/bin/sh\nsleep " + strconv.FormatFloat(sleepFor.Seconds(), 'f', 2, 64) + "\necho '{}'\n"
+	if err := os.WriteFile(fakePHP, []byte(script), 0755); err != nil {
+		t.Fatalf("Failed to write fake php: %v", err)
+	}
+
+	cfg := &config.Config{PHP: config.PHPConfig{Binary: fakePHP}}
+	for i := range sites {
+		cfg.Laravel = append(cfg.Laravel, config.LaravelConfig{
+			Name:   "site-" + strconv.Itoa(i),
+			Path:   dir,
+			Queues: map[string][]string{"redis": {"default"}},
+		})
+	}
+
+	start := time.Now()
+	result, errs := Collect(context.Background(), cfg)
+	elapsed := time.Since(start)
+
+	if len(errs) != 0 {
+		t.Fatalf("Unexpected errors: %v", errs)
+	}
+
+	if len(result) != sites {
+		t.Errorf("Expected %d sites, got %d", sites, len(result))
+	}
+
+	if elapsed > tolerance {
+		t.Errorf("Expected sites to be collected concurrently; %d sites took %s", sites, elapsed)
+	}
+}
+
+// One failing site must not cost the others their metrics.
+func TestCollect_IsolatesSiteFailures(t *testing.T) {
+	dir := t.TempDir()
+	fakePHP := filepath.Join(dir, "fake-php")
+	if err := os.WriteFile(fakePHP, []byte("#!/bin/sh\necho '{}'\n"), 0755); err != nil {
+		t.Fatalf("Failed to write fake php: %v", err)
+	}
+
+	cfg := &config.Config{
+		PHP: config.PHPConfig{Binary: fakePHP},
+		Laravel: []config.LaravelConfig{
+			{Name: "healthy", Path: dir, Queues: map[string][]string{"redis": {"default"}}},
+			{Name: "broken", Path: dir, Queues: map[string][]string{"redis": {"default"}},
+				PHPConfig: &config.PHPConfig{Binary: filepath.Join(dir, "does-not-exist")}},
+		},
+	}
+
+	result, errs := Collect(context.Background(), cfg)
+
+	if _, ok := result["healthy"]; !ok {
+		t.Errorf("Expected the healthy site to still report, got %v", result)
+	}
+
+	if _, ok := result["broken"]; ok {
+		t.Errorf("Expected no metrics for the broken site")
+	}
+
+	if _, ok := errs["laravel:broken"]; !ok {
+		t.Errorf("Expected an error keyed to the broken site, got %v", errs)
 	}
 }
