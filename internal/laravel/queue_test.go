@@ -2,7 +2,12 @@ package laravel
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -207,4 +212,73 @@ func intPtr(i int) *int {
 
 func float32Ptr(f float32) *float32 {
 	return &f
+}
+
+// Connection and queue names are operator-supplied. They must never end up as
+// PHP source: a name containing a quote used to break out of the string it was
+// interpolated into.
+func TestBuildQueueScript_DoesNotInterpolateNames(t *testing.T) {
+	queueMap := map[string][]string{
+		`redis'; system('id'); //`: {`default'; system('whoami'); //`},
+	}
+
+	script, err := buildQueueScript(queueMap)
+	if err != nil {
+		t.Fatalf("buildQueueScript() unexpected error: %v", err)
+	}
+
+	if strings.Contains(script, "system(") {
+		t.Errorf("Expected names to be encoded, but the script contains them verbatim:\n%s", script)
+	}
+
+	// ...and the payload still has to arrive intact on the PHP side.
+	start := strings.Index(script, "base64_decode('")
+	if start == -1 {
+		t.Fatalf("Expected a base64 payload in the script")
+	}
+	start += len("base64_decode('")
+	end := strings.Index(script[start:], "'")
+	if end == -1 {
+		t.Fatalf("Unterminated base64 payload")
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(script[start : start+end])
+	if err != nil {
+		t.Fatalf("Failed to decode payload: %v", err)
+	}
+
+	var roundTripped map[string][]string
+	if err := json.Unmarshal(decoded, &roundTripped); err != nil {
+		t.Fatalf("Failed to parse payload: %v", err)
+	}
+
+	if !reflect.DeepEqual(roundTripped, queueMap) {
+		t.Errorf("Expected %v, got %v", queueMap, roundTripped)
+	}
+}
+
+func TestBuildQueueScript_IsValidPHP(t *testing.T) {
+	php, err := exec.LookPath("php")
+	if err != nil {
+		t.Skip("php not available")
+	}
+
+	script, err := buildQueueScript(map[string][]string{
+		"redis":    {"default", "emails"},
+		"database": {"jobs"},
+	})
+	if err != nil {
+		t.Fatalf("buildQueueScript() unexpected error: %v", err)
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "script.php")
+	if err := os.WriteFile(path, []byte("<?php\n"+script), 0644); err != nil {
+		t.Fatalf("Failed to write script: %v", err)
+	}
+
+	out, err := exec.Command(php, "-l", path).CombinedOutput()
+	if err != nil {
+		t.Errorf("Generated script is not valid PHP: %v\n%s", err, out)
+	}
 }

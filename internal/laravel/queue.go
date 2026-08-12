@@ -3,12 +3,12 @@ package laravel
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 )
 
 type QueueMetrics struct {
@@ -37,29 +37,44 @@ func GetQueueSizes(ctx context.Context, appPath string, phpBinary string, queueM
 		return &QueueSizes{}, nil
 	}
 
-	script := `use Illuminate\Queue\QueueManager;
+	script, err := buildQueueScript(queueMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return runQueueScript(ctx, appPath, phpBinary, script)
+}
+
+// buildQueueScript renders the tinker script that reports queue sizes.
+//
+// Connection and queue names come from user configuration, so they are handed to
+// PHP as base64-encoded JSON rather than interpolated into the script. A name
+// containing a quote used to terminate the surrounding PHP string, which broke
+// the script at best and executed arbitrary PHP at worst.
+func buildQueueScript(queueMap map[string][]string) (string, error) {
+	encoded, err := json.Marshal(queueMap)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode queue config: %w", err)
+	}
+
+	script := fmt.Sprintf(`use Illuminate\Queue\QueueManager;
 use Illuminate\Queue\Failed\FailedJobProviderInterface;
 use Carbon\Carbon;
 
 $manager = app(QueueManager::class);
 $failedJobsProvider = app(FailedJobProviderInterface::class);
 $now = now();
-$sizes = [];`
+$sizes = [];
+$queues = json_decode(base64_decode('%s'), true);`, base64.StdEncoding.EncodeToString(encoded))
 
-	for conn, queues := range queueMap {
-		quoted := make([]string, len(queues))
-		for i, q := range queues {
-			quoted[i] = fmt.Sprintf(`'%[1]s'`, q)
-		}
-		queueList := fmt.Sprintf("[%[1]s]", strings.Join(quoted, ", "))
-
-		script += fmt.Sprintf(`
-foreach (%[2]s as $q) {
+	script += `
+foreach ($queues as $conn => $qs) {
+foreach ($qs as $q) {
 	try {
-		$sizes["%[1]s"][$q] = ['size' => null, 'pending' => null, 'delayed' => null, 'oldest_pending' => null, 'failed' => null, 'failed_rate' => null, 'failed_avg_time' => null];
-		$connection = $manager->connection("%[1]s");
+		$sizes[$conn][$q] = ['size' => null, 'pending' => null, 'delayed' => null, 'oldest_pending' => null, 'failed' => null, 'failed_rate' => null, 'failed_avg_time' => null];
+		$connection = $manager->connection($conn);
 		if ($connection instanceof Illuminate\Queue\DatabaseQueue) {
-			$sizes["%[1]s"][$q]['driver'] = "database";
+			$sizes[$conn][$q]['driver'] = "database";
 			try {
 				$db = $connection->getDatabase();
 				$reflection = new ReflectionClass($connection);
@@ -68,37 +83,37 @@ foreach (%[2]s as $q) {
 				$table = $property->getValue($connection);
 				$oldestPending = $db->table($table)->where("queue", $q)->whereNull("reserved_at")->orderBy("created_at")->value("created_at");
 
-				$sizes["%[1]s"][$q]['pending'] = $db->table($table)->where("queue", $q)->whereNull("reserved_at")->where("available_at", "<=", $now->timestamp)->count();
-				$sizes["%[1]s"][$q]['scheduled'] = $db->table($table)->where("queue", $q)->where("available_at", ">", $now->timestamp)->count();
-				$sizes["%[1]s"][$q]['reserved'] = $db->table($table)->where("queue", $q)->whereNotNull("reserved_at")->count();
-				$sizes["%[1]s"][$q]['oldest_pending'] = $oldestPending ? (int) now()->diffInSeconds(Carbon::createFromTimestamp($oldestPending), true) : null;
+				$sizes[$conn][$q]['pending'] = $db->table($table)->where("queue", $q)->whereNull("reserved_at")->where("available_at", "<=", $now->timestamp)->count();
+				$sizes[$conn][$q]['scheduled'] = $db->table($table)->where("queue", $q)->where("available_at", ">", $now->timestamp)->count();
+				$sizes[$conn][$q]['reserved'] = $db->table($table)->where("queue", $q)->whereNotNull("reserved_at")->count();
+				$sizes[$conn][$q]['oldest_pending'] = $oldestPending ? (int) now()->diffInSeconds(Carbon::createFromTimestamp($oldestPending), true) : null;
 			} catch (\Throwable $e) {
-				$sizes["%[1]s"][$q]['error'] = $e->getMessage();
+				$sizes[$conn][$q]['error'] = $e->getMessage();
 			}
 		}
 		if ($connection instanceof Illuminate\Queue\RedisQueue) {
-			$sizes["%[1]s"][$q]['driver'] = "redis";
+			$sizes[$conn][$q]['driver'] = "redis";
 			try {
 				$redis = $connection->getConnection();
 				$queueKey = $connection->getQueue($q);
 	
-				$sizes["%[1]s"][$q]['size'] = $redis->llen($queueKey);
-				$sizes["%[1]s"][$q]['pending'] = $redis->llen($queueKey);
-				$sizes["%[1]s"][$q]['scheduled'] = $redis->zcard($queueKey.':delayed');
-				$sizes["%[1]s"][$q]['reserved'] = $redis->zcard($queueKey.':reserved');
+				$sizes[$conn][$q]['size'] = $redis->llen($queueKey);
+				$sizes[$conn][$q]['pending'] = $redis->llen($queueKey);
+				$sizes[$conn][$q]['scheduled'] = $redis->zcard($queueKey.':delayed');
+				$sizes[$conn][$q]['reserved'] = $redis->zcard($queueKey.':reserved');
 	
 				$oldestRaw = $redis->lindex($queueKey, 0);
 				if ($oldestRaw) {
 					$decoded = json_decode($oldestRaw, true);
 					if (isset($decoded['createdAt'])) {
-						$sizes["%[1]s"][$q]['oldest_pending'] = $decoded['createdAt'] ? (int) Carbon::createFromTimestamp($decoded['createdAt'])->diffInSeconds($now, true) : null;
+						$sizes[$conn][$q]['oldest_pending'] = $decoded['createdAt'] ? (int) Carbon::createFromTimestamp($decoded['createdAt'])->diffInSeconds($now, true) : null;
 					}
 				}
 			} catch (\Throwable $e) {
-				$sizes["%[1]s"][$q]['error'] = $e->getMessage();
+				$sizes[$conn][$q]['error'] = $e->getMessage();
 			}
 		}
-		$sizes["%[1]s"][$q]['size'] = $manager->connection("%[1]s")->size($q);
+		$sizes[$conn][$q]['size'] = $manager->connection($conn)->size($q);
 
 		try {
 			if ($failedJobsProvider instanceof Illuminate\Queue\Failed\DatabaseFailedJobProvider
@@ -113,7 +128,7 @@ foreach (%[2]s as $q) {
 				$failed = [];
 				$failedRates = [];
 			
-				$baseQuery = $query->where('connection', '%[1]s')->where('queue', $q);;
+				$baseQuery = $query->where('connection', $conn)->where('queue', $q);;
 	
 				foreach ($minutes as $min) {
 					$from = now()->subMinutes($min);
@@ -136,34 +151,38 @@ foreach (%[2]s as $q) {
 					->orderBy('failed_at', 'desc')
 					->value('failed_at');
 			
-				$sizes["%[1]s"][$q]['failed'] = (clone $baseQuery)->count() ?? null;
-				$sizes["%[1]s"][$q]['failed_rate_1m'] = $failedRates[1] ?? null;
-				$sizes["%[1]s"][$q]['failed_rate_5m'] = $failedRates[5] ?? null;
-				$sizes["%[1]s"][$q]['failed_rate_10m'] = $failedRates[10] ?? null;
-				$sizes["%[1]s"][$q]['failed_1m'] = $failed[1] ?? null;
-				$sizes["%[1]s"][$q]['failed_5m'] = $failed[5] ?? null;
-				$sizes["%[1]s"][$q]['failed_10m'] = $failed[10] ?? null;
-				$sizes["%[1]s"][$q]['oldest_failed'] = $oldestFailed ? (int) Carbon::parse($oldestFailed)->diffInSeconds($now, true) : null;
-				$sizes["%[1]s"][$q]['newest_failed'] = $newestFailed ? (int) Carbon::parse($newestFailed)->diffInSeconds($now, true) : null;
+				$sizes[$conn][$q]['failed'] = (clone $baseQuery)->count() ?? null;
+				$sizes[$conn][$q]['failed_rate_1m'] = $failedRates[1] ?? null;
+				$sizes[$conn][$q]['failed_rate_5m'] = $failedRates[5] ?? null;
+				$sizes[$conn][$q]['failed_rate_10m'] = $failedRates[10] ?? null;
+				$sizes[$conn][$q]['failed_1m'] = $failed[1] ?? null;
+				$sizes[$conn][$q]['failed_5m'] = $failed[5] ?? null;
+				$sizes[$conn][$q]['failed_10m'] = $failed[10] ?? null;
+				$sizes[$conn][$q]['oldest_failed'] = $oldestFailed ? (int) Carbon::parse($oldestFailed)->diffInSeconds($now, true) : null;
+				$sizes[$conn][$q]['newest_failed'] = $newestFailed ? (int) Carbon::parse($newestFailed)->diffInSeconds($now, true) : null;
 			
 			} else {
-				$sizes["%[1]s"][$q]['error'] = "Unknown class ". $failedJobsProvider;
+				$sizes[$conn][$q]['error'] = "Unknown class ". $failedJobsProvider;
 			}
 		} catch (\Throwable $e) {
-			$sizes["%[1]s"][$q]['error'] = $e->getMessage();
+			$sizes[$conn][$q]['error'] = $e->getMessage();
 		}
 		
 	} catch (\Throwable $e) {
-		$sizes["%[1]s"][$q]['size'] = null;
-		$sizes["%[1]s"][$q]['error'] = $e->getMessage();
+		$sizes[$conn][$q]['size'] = null;
+		$sizes[$conn][$q]['error'] = $e->getMessage();
 	}
-}`, conn, queueList)
-	}
+}
+}`
 
 	script += `
 
 echo json_encode($sizes);`
 
+	return script, nil
+}
+
+func runQueueScript(ctx context.Context, appPath string, phpBinary string, script string) (*QueueSizes, error) {
 	cmd := exec.CommandContext(ctx, phpBinary, "-d", "error_reporting=E_ALL & ~E_DEPRECATED", "artisan", "tinker", "--execute", script)
 	cmd.Dir = filepath.Clean(appPath)
 
@@ -180,8 +199,7 @@ echo json_encode($sizes);`
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 
-	err := cmd.Run()
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("artisan tinker timed out: %w", ctx.Err())
 		}
