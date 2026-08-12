@@ -85,8 +85,11 @@ type LaravelConfig struct {
 }
 
 // DefaultLaravelTimeout bounds a single artisan invocation. Booting a Laravel
-// app is slow, so this is generous compared to the FPM socket timeouts.
-const DefaultLaravelTimeout = 10 * time.Second
+// app is slow, so this is generous compared to the FPM socket timeouts -- but
+// it has to leave room inside the scrape budget, which in turn has to fit
+// inside Prometheus' own scrape_timeout (10s by default). One degraded site
+// must not cost the whole target its metrics.
+const DefaultLaravelTimeout = 5 * time.Second
 
 type MonitorConfig struct {
 	ListenAddr string `mapstructure:"listen_addr"`
@@ -128,7 +131,7 @@ func Load() (*Config, error) {
 
 	viper.SetDefault("monitor.listen_addr", ":9114")
 	viper.SetDefault("monitor.enable_json", true)
-	viper.SetDefault("monitor.scrape_timeout", "15s")
+	viper.SetDefault("monitor.scrape_timeout", "8s")
 
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "json")

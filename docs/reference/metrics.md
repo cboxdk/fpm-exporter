@@ -8,6 +8,19 @@ weight: 1
 
 Cbox FPM Exporter provides metrics in three categories: PHP-FPM, Laravel, and System.
 
+## Exporter Health
+
+The exporter exposes the standard Go and process collectors — `go_goroutines`,
+`process_resident_memory_bytes` and friends — plus:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `fpm_exporter_build_info` | gauge | Always 1; carries `version` and `goversion` labels |
+| `promhttp_metric_handler_requests_total` | counter | Scrapes served, by status code |
+
+`/healthz` answers without collecting anything and is the right target for a
+liveness probe. `/` links to both.
+
 ## Scrape Health
 
 Emitted once per scrape, without labels.

@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
+	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cboxdk/fpm-exporter/internal/config"
@@ -78,16 +80,35 @@ type PoolOutcome struct {
 // GetMetrics scrapes every configured pool. It returns one outcome per pool, in
 // configuration order, and an error only when nothing at all could be collected.
 func GetMetrics(ctx context.Context, cfg *config.Config) ([]PoolOutcome, error) {
-	outcomes := make([]PoolOutcome, 0, len(cfg.PHPFpm.Pools))
+	outcomes := make([]PoolOutcome, len(cfg.PHPFpm.Pools))
 
-	for _, poolCfg := range cfg.PHPFpm.Pools {
-		outcome := collectPool(ctx, poolCfg)
-		if outcome.Err != nil {
-			logging.L().Warn("Cbox Pool scrape failed",
-				"pool", outcome.Name, "socket", outcome.Socket, "err", outcome.Err)
-		}
-		outcomes = append(outcomes, outcome)
+	// Pools are scraped concurrently. Serially, each unreachable pool cost its
+	// full dial timeout before the next one was tried -- three dead pools took
+	// a measured 9.0s of a 15s budget, and healthy pools later in the list
+	// returned nothing at all. Bounded, because each pool in flight is a
+	// FastCGI connection plus, for opcache, a PHP request.
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, min(len(cfg.PHPFpm.Pools), max(4, runtime.NumCPU())))
+
+	for i, poolCfg := range cfg.PHPFpm.Pools {
+		wg.Add(1)
+		go func(i int, poolCfg config.FPMPoolConfig) {
+			defer wg.Done()
+
+			slots <- struct{}{}
+			defer func() { <-slots }()
+
+			outcome := collectPool(ctx, poolCfg)
+			if outcome.Err != nil {
+				logging.L().Warn("Cbox Pool scrape failed",
+					"pool", outcome.Name, "socket", outcome.Socket, "err", outcome.Err)
+			}
+			// Written by index so the results stay in configuration order.
+			outcomes[i] = outcome
+		}(i, poolCfg)
 	}
+
+	wg.Wait()
 
 	if len(outcomes) > 0 && !slices.ContainsFunc(outcomes, func(o PoolOutcome) bool { return o.Err == nil }) {
 		return outcomes, fmt.Errorf("all %d configured PHP-FPM pools failed to scrape", len(outcomes))

@@ -11,12 +11,14 @@ import (
 	"github.com/cboxdk/fpm-exporter/internal/metrics"
 	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -521,7 +523,39 @@ func StartPrometheusServer(cfg *config.Config) error {
 	collector := NewPrometheusCollector(cfg)
 	registry.MustRegister(collector)
 
-	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	// Without these you cannot monitor the exporter itself: no goroutine count
+	// to catch a leak, no RSS, no way to alert on a version skew across a fleet.
+	registry.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+	registry.MustRegister(buildInfoCollector())
+
+	// MaxRequestsInFlight bounds the damage from a scrape storm: every
+	// collection forks `php artisan` per Laravel site, on an endpoint that is
+	// unauthenticated by default.
+	mux.Handle("/metrics", promhttp.InstrumentMetricHandler(registry,
+		promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+			MaxRequestsInFlight: 2,
+			Timeout:             scrapeTimeout(cfg),
+		})))
+
+	// Health, deliberately without collecting anything: pointing a liveness
+	// probe at /metrics makes every probe fork PHP, and the documented
+	// Kubernetes probe did exactly that with a 1s default timeout.
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte("ok\n"))
+	})
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(landingPage))
+	})
 
 	if cfg.Monitor.EnableJson {
 		mux.HandleFunc("/json", func(w http.ResponseWriter, r *http.Request) {
@@ -593,13 +627,38 @@ func StartPrometheusServer(cfg *config.Config) error {
 	return nil
 }
 
+// Version is stamped at build time and surfaced as build info, so a fleet with
+// a partial rollout is visible in Prometheus rather than in ssh.
+var Version = "dev"
+
+func buildInfoCollector() prometheus.Collector {
+	return prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name:        "fpm_exporter_build_info",
+		Help:        "Build information for the running exporter.",
+		ConstLabels: prometheus.Labels{"version": Version, "goversion": runtime.Version()},
+	}, func() float64 { return 1 })
+}
+
+const landingPage = `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Cbox FPM Exporter</title></head>
+<body>
+<h1>Cbox FPM Exporter</h1>
+<ul>
+  <li><a href="/metrics">/metrics</a></li>
+  <li><a href="/healthz">/healthz</a></li>
+</ul>
+</body>
+</html>
+`
+
 // scrapeTimeout bounds one collection. It has to stay below Prometheus' own
 // scrape_timeout, or the exporter keeps working on a scrape nobody is reading.
 func scrapeTimeout(cfg *config.Config) time.Duration {
 	if cfg != nil && cfg.Monitor.ScrapeTimeout > 0 {
 		return cfg.Monitor.ScrapeTimeout
 	}
-	return 15 * time.Second
+	return 8 * time.Second
 }
 
 // collectLaravel emits the Laravel metrics for one scrape. Split out from

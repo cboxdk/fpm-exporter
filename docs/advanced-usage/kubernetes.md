@@ -193,17 +193,23 @@ containers:
   - name: fpm-exporter
     livenessProbe:
       httpGet:
-        path: /metrics
+        path: /healthz
         port: 9114
       initialDelaySeconds: 10
       periodSeconds: 30
     readinessProbe:
       httpGet:
-        path: /metrics
+        path: /healthz
         port: 9114
       initialDelaySeconds: 5
       periodSeconds: 10
 ```
+
+Point probes at `/healthz`, never at `/metrics`. `/healthz` answers without
+collecting anything; a probe against `/metrics` forks `php artisan` for every
+configured Laravel site on every probe, and with kubelet's 1 second default
+`timeoutSeconds` an unreachable Redis in the application turns into a
+CrashLoopBackOff for the exporter.
 
 ## Resource Recommendations
 
