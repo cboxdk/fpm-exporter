@@ -35,7 +35,7 @@ test:
 	$(GOTEST) -race -cover ./...
 
 # The same gate CI runs.
-check: fmt-check vet lint test vulncheck
+check: fmt-check vet lint test vulncheck sbom-check license-check
 
 fmt:
 	gofmt -w .
@@ -56,6 +56,19 @@ lint:
 
 vulncheck:
 	$(GOCMD) run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+# Deterministic CycloneDX 1.5 SBOM: no serial number, no timestamp, so it only
+# changes when the dependencies do.
+sbom:
+	$(GOCMD) run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.10.0 \
+		mod -json -licenses -assert-licenses -noserial -notimestamp \
+		-output-version 1.5 -output sbom.json .
+
+sbom-check: sbom
+	git diff --exit-code sbom.json
+
+license-check:
+	$(GOCMD) run ./tools/licensecheck
 
 test-coverage:
 	$(GOTEST) -v -coverprofile=coverage.out ./...
