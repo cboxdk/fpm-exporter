@@ -20,10 +20,12 @@ type LoggingBlock struct {
 	Color  bool   `mapstructure:"color"`  // enable ANSI colors in text format
 }
 
+// PHPConfig is decoded by viper (mapstructure) from the main config file, and by
+// yaml/json when it arrives through --laravel-config or CBOX_LARAVEL_SITES.
 type PHPConfig struct {
-	Enabled bool   `mapstructure:"enabled"`
-	Binary  string `mapstructure:"binary"`
-	IniPath string `mapstructure:"ini_path"`
+	Enabled bool   `mapstructure:"enabled" yaml:"enabled" json:"enabled"`
+	Binary  string `mapstructure:"binary" yaml:"binary" json:"binary"`
+	IniPath string `mapstructure:"ini_path" yaml:"ini_path" json:"ini_path"`
 }
 
 type FPMConfig struct {
@@ -47,12 +49,17 @@ type FPMPoolConfig struct {
 	Timeout           time.Duration `mapstructure:"timeout"`
 }
 
+// LaravelConfig is decoded from three different sources, each with its own tag
+// convention: the main config file via viper (mapstructure), a --laravel-config /
+// CBOX_LARAVEL_CONFIG file via yaml, and CBOX_LARAVEL_SITES via json. All three
+// sets of tags must stay in sync, or a documented key is silently dropped on the
+// sources whose tag is missing.
 type LaravelConfig struct {
-	Name          string              `mapstructure:"name"` // Optional name for identification
-	Path          string              `mapstructure:"path"` // Root path to Laravel app
-	EnableAppInfo bool                `mapstructure:"enable_app_info"`
-	PHPConfig     *PHPConfig          `mapstructure:"php_config"` // Optional override of global PHP config
-	Queues        map[string][]string `mapstructure:"queues"`     // Map of connection name to list of queue names
+	Name          string              `mapstructure:"name" yaml:"name" json:"name"`                                  // Optional name for identification
+	Path          string              `mapstructure:"path" yaml:"path" json:"path"`                                  // Root path to Laravel app
+	EnableAppInfo bool                `mapstructure:"enable_app_info" yaml:"enable_app_info" json:"enable_app_info"` // Collect `php artisan about` metrics
+	PHPConfig     *PHPConfig          `mapstructure:"php_config" yaml:"php_config" json:"php_config"`                // Optional override of global PHP config
+	Queues        map[string][]string `mapstructure:"queues" yaml:"queues" json:"queues"`                            // Map of connection name to list of queue names
 }
 
 type MonitorConfig struct {
