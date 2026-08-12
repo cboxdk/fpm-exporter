@@ -24,7 +24,7 @@ fpm-exporter serve [flags]
 | `--config` | Path to config file | - |
 | `--autodiscover` | Auto-discover PHP-FPM pools | `true` |
 | `--log-level` | Log level (debug, info, warn, error) | `info` |
-| `--laravel` | Laravel site shorthand (`path` or `name:path`, repeatable) | - |
+| `--laravel` | Laravel site shorthand (`path` or `name:path`, single site) | - |
 | `--laravel-site` | Laravel site property (`key=value`, repeatable) | - |
 | `--laravel-config` | Path to a Laravel sites YAML file | - |
 
@@ -46,7 +46,7 @@ For queue monitoring and other options, use repeatable `--laravel-site` flags:
 fpm-exporter serve \
   --laravel-site name=SiteName \
   --laravel-site path=/path/to/laravel \
-  --laravel-site enable_app_info=true \
+  --laravel-site appinfo=true \
   --laravel-site queues.redis=default,emails
 ```
 
@@ -179,11 +179,27 @@ Laravel configuration sources use the following precedence, from highest to lowe
 
 1. `--laravel-site`
 2. `--laravel`
-3. `CBOX_LARAVEL_SITES`
-4. `--laravel-config`
-5. `CBOX_LARAVEL_CONFIG`
+3. `CBOX_LARAVEL_CONFIG` (ignored when `--laravel-config` is set)
+4. `CBOX_LARAVEL_SITES`
+5. `--laravel-config`
+
+Sites are merged by `name`: a site from a higher-precedence source replaces the
+whole site with the same name from a lower-precedence one — the fields are not
+merged individually.
 
 Each site requires a unique `name`, an existing `path`, and an `artisan` file in that path.
+
+### `--laravel-site` keys
+
+| Key | Description |
+|-----|-------------|
+| `name` | Site identifier. A second `name=` starts a new site |
+| `path` | Path to the Laravel application root |
+| `appinfo` | `true`/`1` to collect `php artisan about` metrics |
+| `queues.<connection>` | Comma-separated queue names for that connection |
+
+Note that the flag uses `appinfo`, while the YAML and JSON sources use
+`enable_app_info`. Any other key is rejected with an error.
 
 ### Basic Setup
 

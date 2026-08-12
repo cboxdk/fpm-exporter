@@ -203,6 +203,73 @@ func TestParseConfigFile(t *testing.T) {
 	}
 }
 
+// LaravelConfig is decoded by yaml here and by json from CBOX_LARAVEL_SITES, so
+// snake_case keys only work as long as both tag sets exist on the struct.
+func TestParseConfigFileSnakeCaseKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "laravel.yaml")
+
+	yamlContent := `laravel:
+  - name: App
+    path: /var/www/html
+    enable_app_info: true
+    php_config:
+      binary: /usr/bin/php8.4
+      ini_path: /etc/php.ini
+`
+
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	sites, err := parseConfigFile(configPath)
+	if err != nil {
+		t.Fatalf("parseConfigFile() unexpected error: %v", err)
+	}
+
+	if len(sites) != 1 {
+		t.Fatalf("Expected 1 site, got %d", len(sites))
+	}
+
+	if !sites[0].EnableAppInfo {
+		t.Errorf("Expected enable_app_info to be parsed as true")
+	}
+
+	if sites[0].PHPConfig == nil {
+		t.Fatalf("Expected php_config to be parsed")
+	}
+
+	if sites[0].PHPConfig.IniPath != "/etc/php.ini" {
+		t.Errorf("Expected ini_path '/etc/php.ini', got %q", sites[0].PHPConfig.IniPath)
+	}
+}
+
+func TestParseLaravelSitesEnvSnakeCaseKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+	appPath := filepath.Join(tmpDir, "app")
+	_ = os.MkdirAll(appPath, 0755)
+	_ = os.WriteFile(filepath.Join(appPath, "artisan"), []byte("#!/usr/bin/env php"), 0644)
+
+	t.Setenv("CBOX_LARAVEL_SITES", `[{"name":"App","path":"`+appPath+`","enable_app_info":true}]`)
+
+	laravelShorthand = ""
+	laravelSiteFlags = nil
+	laravelConfigFile = ""
+
+	sites, err := parseLaravelSites()
+	if err != nil {
+		t.Fatalf("parseLaravelSites() unexpected error: %v", err)
+	}
+
+	if len(sites) != 1 {
+		t.Fatalf("Expected 1 site, got %d", len(sites))
+	}
+
+	if !sites[0].EnableAppInfo {
+		t.Errorf("Expected enable_app_info to be parsed as true from CBOX_LARAVEL_SITES")
+	}
+}
+
 func TestMergeSites(t *testing.T) {
 	base := []config.LaravelConfig{
 		{Name: "App", Path: "/var/www/html"},
