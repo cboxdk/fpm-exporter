@@ -8,6 +8,11 @@ weight: 23
 
 Deploy Cbox FPM Exporter in Kubernetes environments.
 
+> **No container image is published yet.** The manifests below use
+> `your-registry/fpm-exporter` as a placeholder — build an image from a release
+> binary first (see [Installation](../getting-started/installation)) and push it
+> to a registry you control.
+
 ## Sidecar Pattern
 
 Run the exporter alongside your PHP-FPM container:
@@ -45,7 +50,7 @@ spec:
 
         # Cbox FPM Exporter sidecar
         - name: fpm-exporter
-          image: cboxdk/fpm-exporter:latest
+          image: your-registry/fpm-exporter:v3.1.0
           args:
             - serve
             - --laravel
@@ -111,7 +116,7 @@ spec:
     spec:
       containers:
         - name: fpm-exporter
-          image: cboxdk/fpm-exporter:latest
+          image: your-registry/fpm-exporter:v3.1.0
           args:
             - serve
             - --config
@@ -257,8 +262,8 @@ If packaging as Helm chart:
 fpmExporter:
   enabled: true
   image:
-    repository: cboxdk/fpm-exporter
-    tag: latest
+    repository: your-registry/fpm-exporter
+    tag: v3.1.0
   resources:
     requests:
       cpu: 10m
