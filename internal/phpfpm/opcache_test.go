@@ -295,12 +295,6 @@ func TestGetOpcacheStatus_ErrorHandling(t *testing.T) {
 }
 
 func TestGetOpcacheStatus_ScriptCreation(t *testing.T) {
-	// Test that the opcache status script is created
-	expectedPath := "/tmp/cbox-opcache-status.php"
-
-	// Remove the file if it exists
-	_ = os.Remove(expectedPath)
-
 	// Initialize logging to prevent panic
 	logging.Init(config.LoggingBlock{Level: "error", Format: "text"})
 
@@ -309,19 +303,33 @@ func TestGetOpcacheStatus_ScriptCreation(t *testing.T) {
 		StatusSocket: "unix:///non/existent/socket",
 	}
 
-	// This will fail to connect, but should create the script file
+	// This will fail to connect, but should still have written the script
 	_, err := GetOpcacheStatus(ctx, cfg)
 	if err == nil {
 		t.Errorf("Expected error due to non-existent socket")
 	}
 
-	// Check that the script file was created
-	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
-		t.Errorf("Expected opcache status script to be created at %s", expectedPath)
+	path, err := opcacheScript()
+	if err != nil {
+		t.Fatalf("opcacheScript() unexpected error: %v", err)
 	}
 
-	// Check script content
-	content, err := os.ReadFile(expectedPath)
+	if path == "" {
+		t.Fatalf("Expected a script path to be set")
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Expected opcache status script at %s: %v", path, err)
+	}
+
+	// PHP-FPM commonly runs as another user, so the script has to be readable —
+	// but never writable by anyone but us.
+	if perm := info.Mode().Perm(); perm != 0644 {
+		t.Errorf("Expected script mode 0644, got %04o", perm)
+	}
+
+	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("Failed to read opcache script: %v", err)
 	}
@@ -342,48 +350,55 @@ func TestGetOpcacheStatus_ScriptCreation(t *testing.T) {
 			t.Errorf("Expected script to contain '%s', but it was not found", expected)
 		}
 	}
-
-	// Clean up
-	_ = os.Remove(expectedPath)
 }
 
-func TestGetOpcacheStatus_ScriptReuse(t *testing.T) {
-	// Test that the script is reused if it already exists
-	expectedPath := "/tmp/cbox-opcache-status.php"
+// A local user must not be able to pre-create the path we hand to PHP-FPM and
+// have their own code executed as the pool user.
+func TestGetOpcacheStatus_DoesNotUsePlantedScript(t *testing.T) {
+	plantedPath := "/tmp/cbox-opcache-status.php"
+	plantedContent := `<?php echo "planted";`
 
-	// Create a custom script first
-	customContent := `<?php echo "custom script";`
-	err := os.WriteFile(expectedPath, []byte(customContent), 0644)
+	if err := os.WriteFile(plantedPath, []byte(plantedContent), 0644); err != nil {
+		t.Fatalf("Failed to create planted script: %v", err)
+	}
+	defer func() { _ = os.Remove(plantedPath) }()
+
+	path, err := opcacheScript()
 	if err != nil {
-		t.Fatalf("Failed to create custom script: %v", err)
+		t.Fatalf("opcacheScript() unexpected error: %v", err)
 	}
 
-	// Initialize logging to prevent panic
-	logging.Init(config.LoggingBlock{Level: "error", Format: "text"})
-
-	ctx := context.Background()
-	cfg := config.FPMPoolConfig{
-		StatusSocket: "unix:///non/existent/socket",
+	if path == plantedPath {
+		t.Fatalf("Expected a generated path, got the planted one: %s", path)
 	}
 
-	// This will fail to connect, but should NOT overwrite the existing script
-	_, err = GetOpcacheStatus(ctx, cfg)
-	if err == nil {
-		t.Errorf("Expected error due to non-existent socket")
-	}
-
-	// Check that the script content is unchanged
-	content, err := os.ReadFile(expectedPath)
+	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("Failed to read script: %v", err)
 	}
 
-	if string(content) != customContent {
-		t.Errorf("Expected script content to be unchanged, but it was modified")
+	if strings.Contains(string(content), "planted") {
+		t.Errorf("Expected the generated script, got planted content")
+	}
+}
+
+func TestRemoveOpcacheScript(t *testing.T) {
+	path, err := opcacheScript()
+	if err != nil {
+		t.Fatalf("opcacheScript() unexpected error: %v", err)
 	}
 
-	// Clean up
-	_ = os.Remove(expectedPath)
+	RemoveOpcacheScript()
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("Expected script at %s to be removed", path)
+	}
+
+	// The path is memoized for the process, so put it back for any test that
+	// runs after this one.
+	if err := os.WriteFile(path, []byte(opcacheScriptContent), 0644); err != nil {
+		t.Fatalf("Failed to restore script: %v", err)
+	}
 }
 
 func TestOpcacheStatus_EmptyValues(t *testing.T) {
