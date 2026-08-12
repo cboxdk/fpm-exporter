@@ -157,7 +157,42 @@ func collectPool(ctx context.Context, poolCfg config.FPMPoolConfig) PoolOutcome 
 		result.Global = exportableConfig(conf.Global)
 	}
 
-	// Process counting and CPU/mem parsing from actual process list
+	recountProcesses(&pool, poolCfg.StatusPath)
+
+	phpStatus, err := GetPHPStats(ctx, poolCfg)
+	if err == nil && phpStatus != nil {
+		pool.PhpInfo = *phpStatus
+	} else {
+		logging.L().Debug("Cbox failed to get PHP info", "error", err)
+	}
+
+	opcacheStatus, err := GetOpcacheStatus(ctx, poolCfg)
+	if err == nil && opcacheStatus != nil {
+		pool.OpcacheStatus = *opcacheStatus
+	} else {
+		logging.L().Debug("Cbox failed to get Opcache info", "error", err)
+	}
+
+	result.Pools[pool.Name] = pool
+	result.Pools[pool.Name] = pool
+	// Only adopt the name PHP-FPM reports when the operator did not choose one;
+	// a configured name has to survive the pool going down and coming back.
+	if poolCfg.Name == "" && pool.Name != "" {
+		outcome.Name = pool.Name
+	}
+	outcome.Result = result
+
+	return outcome
+
+}
+
+// recountProcesses derives the pool's process counts and per-request averages
+// from the process list, rather than trusting the summary fields, and strips
+// the query string from each request URI.
+//
+// Extracted so it can be tested: the previous test copied this logic into
+// itself and asserted on the copy, so no production statement ran.
+func recountProcesses(pool *Pool, statusPath string) {
 	var totalCPU, totalMem float64
 	var count int
 
@@ -184,7 +219,7 @@ func collectPool(ctx context.Context, poolCfg config.FPMPoolConfig) PoolOutcome 
 		// CPU/memory calculation, excluding the exporter's own traffic: the
 		// status call and the opcache probe. Counting those skews the averages
 		// worst on idle pools, where they are most of the traffic.
-		if !strings.HasPrefix(proc.RequestURI, poolCfg.StatusPath) &&
+		if !strings.HasPrefix(proc.RequestURI, statusPath) &&
 			!strings.HasPrefix(proc.RequestURI, "/"+opcacheScriptPrefix) {
 
 			totalCPU += float64(proc.LastRequestCPU)
@@ -202,31 +237,6 @@ func collectPool(ctx context.Context, poolCfg config.FPMPoolConfig) PoolOutcome 
 		pool.ProcessesCpu = ptr(totalCPU / float64(count))
 		pool.ProcessesMemory = ptr(totalMem / float64(count))
 	}
-
-	phpStatus, err := GetPHPStats(ctx, poolCfg)
-	if err == nil && phpStatus != nil {
-		pool.PhpInfo = *phpStatus
-	} else {
-		logging.L().Debug("Cbox failed to get PHP info", "error", err)
-	}
-
-	opcacheStatus, err := GetOpcacheStatus(ctx, poolCfg)
-	if err == nil && opcacheStatus != nil {
-		pool.OpcacheStatus = *opcacheStatus
-	} else {
-		logging.L().Debug("Cbox failed to get Opcache info", "error", err)
-	}
-
-	result.Pools[pool.Name] = pool
-	result.Pools[pool.Name] = pool
-	// Only adopt the name PHP-FPM reports when the operator did not choose one;
-	// a configured name has to survive the pool going down and coming back.
-	if poolCfg.Name == "" && pool.Name != "" {
-		outcome.Name = pool.Name
-	}
-	outcome.Result = result
-
-	return outcome
 
 }
 

@@ -928,3 +928,34 @@ func TestCollect_FailedPoolReportsDown(t *testing.T) {
 		t.Errorf("Expected the healthy pool to report up=1, got %v (series: %v)", got["api"], got)
 	}
 }
+
+// A pedantic registry rejects any metric whose descriptor was never sent to
+// Describe. Twenty-two were missing, which was invisible because production and
+// every test used a plain registry — and would have broken the whole Gather the
+// moment anyone reached for testutil.CollectAndCompare.
+func TestCollect_SatisfiesPedanticRegistry(t *testing.T) {
+	size := 5
+	source := &fakeMetricsSource{metrics: &metrics.Metrics{
+		Timestamp: time.Now(),
+		Server:    &server.SystemInfo{NodeType: server.NodeDocker, OS: "linux", Architecture: "arm64"},
+		FpmPools: []phpfpm.PoolOutcome{{
+			Name:   "www",
+			Socket: "unix:///run/www.sock",
+			Result: &phpfpm.Result{Pools: map[string]phpfpm.Pool{"www": {
+				Name:      "www",
+				Processes: []phpfpm.PoolProcess{{PID: 1, State: "Idle", RequestURI: "/"}},
+			}}},
+		}},
+		Laravel: map[string]*laravel.LaravelMetrics{
+			"app": {Queues: &laravel.QueueSizes{"redis": {"default": {Size: &size}}}},
+		},
+		Errors: map[string]string{},
+	}}
+
+	registry := prometheus.NewPedanticRegistry()
+	registry.MustRegister(NewPrometheusCollectorWithSource(&config.Config{}, source))
+
+	if _, err := registry.Gather(); err != nil {
+		t.Fatalf("Pedantic registry rejected the collection: %v", err)
+	}
+}
