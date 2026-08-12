@@ -1,8 +1,12 @@
 package laravel
 
 import (
+	"context"
 	"encoding/json"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/cboxdk/fpm-exporter/internal/config"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
@@ -240,10 +244,10 @@ func TestGetAppInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear cache before each test
 			cacheMutex.Lock()
-			appInfoCache = make(map[string]*AppInfo)
+			appInfoCache = make(map[string]appInfoEntry)
 			cacheMutex.Unlock()
 
-			result, err := GetAppInfo(tt.site, tt.phpBinary)
+			result, err := GetAppInfo(context.Background(), tt.site, tt.phpBinary)
 
 			if tt.wantErr && err == nil {
 				t.Errorf("Expected error but got none")
@@ -269,7 +273,7 @@ func TestGetAppInfo_Caching(t *testing.T) {
 	logging.Init(config.LoggingBlock{Level: "error", Format: "text"})
 	// Clear cache
 	cacheMutex.Lock()
-	appInfoCache = make(map[string]*AppInfo)
+	appInfoCache = make(map[string]appInfoEntry)
 	cacheMutex.Unlock()
 
 	site := config.LaravelConfig{
@@ -279,7 +283,7 @@ func TestGetAppInfo_Caching(t *testing.T) {
 	}
 
 	// First call should attempt to run artisan (and fail)
-	result1, err1 := GetAppInfo(site, "php")
+	result1, err1 := GetAppInfo(context.Background(), site, "php")
 	if err1 == nil {
 		t.Errorf("Expected error on first call")
 	}
@@ -288,7 +292,7 @@ func TestGetAppInfo_Caching(t *testing.T) {
 	}
 
 	// Second call should use cache and return the same error
-	result2, err2 := GetAppInfo(site, "php")
+	result2, err2 := GetAppInfo(context.Background(), site, "php")
 	if err2 == nil {
 		t.Errorf("Expected error on second call")
 	}
@@ -297,8 +301,39 @@ func TestGetAppInfo_Caching(t *testing.T) {
 	}
 
 	// Error messages should indicate cached failure
-	if err2.Error() != "app info was previously attempted but failed" {
+	if !strings.Contains(err2.Error(), "recently failed") {
 		t.Errorf("Expected cached error message, got: %s", err2.Error())
+	}
+}
+
+// A failure must not poison the site forever: an app that was down when the
+// exporter started has to be picked up once it comes back.
+func TestGetAppInfo_FailureCacheExpires(t *testing.T) {
+	logging.Init(config.LoggingBlock{Level: "error", Format: "text"})
+
+	cacheMutex.Lock()
+	appInfoCache = make(map[string]appInfoEntry)
+	cacheMutex.Unlock()
+
+	site := config.LaravelConfig{
+		Name:          "test",
+		Path:          "/tmp/test-cache-expiry",
+		EnableAppInfo: true,
+	}
+
+	if _, err := GetAppInfo(context.Background(), site, "php"); err == nil {
+		t.Fatalf("Expected error on first call")
+	}
+
+	// Expire the negative entry.
+	cacheAppInfo(filepath.Clean(site.Path), nil, -time.Second)
+
+	_, err := GetAppInfo(context.Background(), site, "php")
+	if err == nil {
+		t.Fatalf("Expected error on retry")
+	}
+	if strings.Contains(err.Error(), "recently failed") {
+		t.Errorf("Expected artisan to be retried after the failure TTL, got cached error")
 	}
 }
 

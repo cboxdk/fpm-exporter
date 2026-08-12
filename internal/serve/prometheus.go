@@ -8,12 +8,16 @@ import (
 	"github.com/cboxdk/fpm-exporter/internal/laravel"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
 	"github.com/cboxdk/fpm-exporter/internal/metrics"
+	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -221,7 +225,7 @@ func parseConfigValue(val string) (float64, bool) {
 }
 
 func (pc *PrometheusCollector) Collect(ch chan<- prometheus.Metric) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), scrapeTimeout(pc.cfg))
 	defer cancel()
 
 	m, err := metrics.GetMetrics(ctx, pc.cfg)
@@ -401,7 +405,7 @@ func StartPrometheusServer(cfg *config.Config) {
 
 	if cfg.Monitor.EnableJson {
 		mux.HandleFunc("/json", func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), scrapeTimeout(cfg))
 			defer cancel()
 
 			m, err := metrics.GetMetrics(ctx, cfg)
@@ -415,15 +419,47 @@ func StartPrometheusServer(cfg *config.Config) {
 		})
 	}
 
+	timeout := scrapeTimeout(cfg)
 	server := &http.Server{
 		Addr:    cfg.Monitor.ListenAddr,
 		Handler: mux,
+		// A scrape may legitimately take as long as the collection budget, but
+		// nothing should be able to hold a connection open indefinitely.
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      timeout + 5*time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
+
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		sig := <-shutdown
+		logging.L().Info("Cbox Shutting down", slog.Any("signal", sig.String()))
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(ctx); err != nil {
+			logging.L().Error("Cbox Graceful shutdown failed", slog.Any("err", err))
+		}
+		phpfpm.RemoveOpcacheScript()
+	}()
 
 	logging.L().Debug("Cbox Prometheus metrics server listening", slog.Any("addr", cfg.Monitor.ListenAddr))
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logging.L().Error("Cbox Failed to start Prometheus server", slog.Any("err", err))
 	}
+}
+
+// scrapeTimeout bounds one collection. It has to stay below Prometheus' own
+// scrape_timeout, or the exporter keeps working on a scrape nobody is reading.
+func scrapeTimeout(cfg *config.Config) time.Duration {
+	if cfg != nil && cfg.Monitor.ScrapeTimeout > 0 {
+		return cfg.Monitor.ScrapeTimeout
+	}
+	return 15 * time.Second
 }
 
 // collectLaravel emits the Laravel metrics for one scrape. Split out from
