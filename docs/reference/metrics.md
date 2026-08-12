@@ -8,6 +8,18 @@ weight: 1
 
 Cbox FPM Exporter provides metrics in three categories: PHP-FPM, Laravel, and System.
 
+## Scrape Health
+
+Emitted once per scrape, without labels.
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `phpfpm_scrape_success` | gauge | Whether the last scrape collected metrics (1=yes, 0=no) |
+| `phpfpm_scrape_failures` | counter | Total failed scrapes since the exporter started |
+
+`phpfpm_scrape_success` distinguishes a failed scrape from a successful one that
+found no pools — in both cases `phpfpm_up` is 0.
+
 ## PHP-FPM Metrics
 
 ### Pool Status
@@ -133,6 +145,11 @@ Labels for `system_info`: `os`, `arch`, `type` (kubernetes, docker, vm, physical
 ## Example Queries
 
 ### PHP-FPM Health
+
+```promql
+# The exporter itself is failing
+rate(phpfpm_scrape_failures[5m]) > 0
+```
 
 ```promql
 # Pool utilization (active / max_children)

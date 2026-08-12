@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -33,8 +34,23 @@ var (
 	laravelDriverInfoDesc      = prometheus.NewDesc("laravel_driver_info", "Configured Laravel driver", []string{"site", "type", "value"}, nil)
 )
 
+// MetricsSource is where a scrape gets its data. The default implementation
+// talks to PHP-FPM and Laravel; tests substitute their own so the metric
+// emission can be exercised without a live host.
+type MetricsSource interface {
+	GetMetrics(ctx context.Context, cfg *config.Config) (*metrics.Metrics, error)
+}
+
+// liveMetrics is the production MetricsSource.
+type liveMetrics struct{}
+
+func (liveMetrics) GetMetrics(ctx context.Context, cfg *config.Config) (*metrics.Metrics, error) {
+	return metrics.GetMetrics(ctx, cfg)
+}
+
 type PrometheusCollector struct {
 	cfg                     *config.Config
+	source                  MetricsSource
 	upDesc                  *prometheus.Desc
 	acceptedConnectionsDesc *prometheus.Desc
 	startSinceDesc          *prometheus.Desc
@@ -97,12 +113,23 @@ type PrometheusCollector struct {
 
 	// Laravel metrics
 	laravelInfoDesc *prometheus.Desc
+
+	// Scrape health
+	scrapeSuccessDesc  *prometheus.Desc
+	scrapeFailuresDesc *prometheus.Desc
+	scrapeFailures     atomic.Uint64
 }
 
 func NewPrometheusCollector(cfg *config.Config) *PrometheusCollector {
+	return NewPrometheusCollectorWithSource(cfg, liveMetrics{})
+}
+
+// NewPrometheusCollectorWithSource builds a collector over an explicit source.
+func NewPrometheusCollectorWithSource(cfg *config.Config, source MetricsSource) *PrometheusCollector {
 	labels := []string{"pool", "socket"}
 	return &PrometheusCollector{
-		cfg: cfg,
+		cfg:    cfg,
+		source: source,
 		// FPM Metrics
 		upDesc:                  prometheus.NewDesc("phpfpm_up", "Shows whether scraping PHP-FPM's status was successful (1 for yes, 0 for no).", labels, nil),
 		acceptedConnectionsDesc: prometheus.NewDesc("phpfpm_accepted_connections", "The number of accepted connections to the pool.", labels, nil),
@@ -149,6 +176,9 @@ func NewPrometheusCollector(cfg *config.Config) *PrometheusCollector {
 		rlimitFilesConfigDesc:             prometheus.NewDesc("phpfpm_rlimit_files_config", "PHP-FPM pool config: file descriptors limit per process.", labels, nil),
 
 		// System metrics
+		scrapeSuccessDesc:  prometheus.NewDesc("phpfpm_scrape_success", "Whether the last scrape collected metrics successfully (1 for yes, 0 for no).", nil, nil),
+		scrapeFailuresDesc: prometheus.NewDesc("phpfpm_scrape_failures", "Total number of failed scrapes since the exporter started.", nil, nil),
+
 		systemInfoDesc:    prometheus.NewDesc("system_info", "System information", []string{"type", "os", "arch"}, nil),
 		cpuLimitDesc:      prometheus.NewDesc("system_cpu_limit", "Logical CPU limit", nil, nil),
 		memoryLimitMBDesc: prometheus.NewDesc("system_memory_limit_mb", "Memory limit in MB", nil, nil),
@@ -159,6 +189,10 @@ func NewPrometheusCollector(cfg *config.Config) *PrometheusCollector {
 }
 
 func (pc *PrometheusCollector) Describe(ch chan<- *prometheus.Desc) {
+	// Scrape health
+	ch <- pc.scrapeSuccessDesc
+	ch <- pc.scrapeFailuresDesc
+
 	// FPM Metrics
 	ch <- pc.upDesc
 	ch <- pc.acceptedConnectionsDesc
@@ -225,14 +259,21 @@ func (pc *PrometheusCollector) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), scrapeTimeout(pc.cfg))
 	defer cancel()
 
-	m, err := metrics.GetMetrics(ctx, pc.cfg)
+	m, err := pc.source.GetMetrics(ctx, pc.cfg)
 	if err != nil {
+		// phpfpm_scrape_failures used to be reported as a counter with the
+		// constant value 1, which made rate() meaningless. It is a real
+		// cumulative counter now, paired with a success gauge so a failed
+		// scrape is distinguishable from one that found no pools.
+		failures := pc.scrapeFailures.Add(1)
+		ch <- prometheus.MustNewConstMetric(pc.scrapeSuccessDesc, prometheus.GaugeValue, 0)
+		ch <- prometheus.MustNewConstMetric(pc.scrapeFailuresDesc, prometheus.CounterValue, float64(failures))
 		ch <- prometheus.MustNewConstMetric(pc.upDesc, prometheus.GaugeValue, 0, "unknown", "unknown")
-		ch <- prometheus.MustNewConstMetric(
-			prometheus.NewDesc("phpfpm_scrape_failures", "The number of failures scraping from PHP-FPM.", nil, nil),
-			prometheus.CounterValue, 1)
 		return
 	}
+
+	ch <- prometheus.MustNewConstMetric(pc.scrapeSuccessDesc, prometheus.GaugeValue, 1)
+	ch <- prometheus.MustNewConstMetric(pc.scrapeFailuresDesc, prometheus.CounterValue, float64(pc.scrapeFailures.Load()))
 
 	if m.Server != nil {
 		nodeType := string(m.Server.NodeType)
@@ -405,7 +446,7 @@ func StartPrometheusServer(cfg *config.Config) {
 			ctx, cancel := context.WithTimeout(r.Context(), scrapeTimeout(cfg))
 			defer cancel()
 
-			m, err := metrics.GetMetrics(ctx, cfg)
+			m, err := collector.source.GetMetrics(ctx, cfg)
 			if err != nil {
 				http.Error(w, "failed to get metrics: "+err.Error(), http.StatusInternalServerError)
 				return

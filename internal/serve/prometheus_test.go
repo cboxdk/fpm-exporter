@@ -1,7 +1,9 @@
 package serve
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,9 @@ import (
 	"github.com/cboxdk/fpm-exporter/internal/config"
 	"github.com/cboxdk/fpm-exporter/internal/laravel"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
+	"github.com/cboxdk/fpm-exporter/internal/metrics"
+	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
+	"github.com/cboxdk/fpm-exporter/internal/server"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
@@ -710,5 +715,123 @@ func TestCollectLaravel_PopulatedAppInfo(t *testing.T) {
 	}
 	if debugModes != 1 {
 		t.Errorf("Expected 1 debug mode metric, got %d", debugModes)
+	}
+}
+
+// fakeMetricsSource lets the collector be exercised end to end without PHP-FPM
+// or a Laravel application on the host.
+type fakeMetricsSource struct {
+	metrics *metrics.Metrics
+	err     error
+	calls   int
+}
+
+func (f *fakeMetricsSource) GetMetrics(_ context.Context, _ *config.Config) (*metrics.Metrics, error) {
+	f.calls++
+	return f.metrics, f.err
+}
+
+func gather(t *testing.T, source MetricsSource) map[string]*dto.MetricFamily {
+	t.Helper()
+
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(NewPrometheusCollectorWithSource(&config.Config{}, source))
+
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("Failed to gather metrics: %v", err)
+	}
+
+	byName := make(map[string]*dto.MetricFamily, len(families))
+	for _, family := range families {
+		byName[family.GetName()] = family
+	}
+	return byName
+}
+
+func TestCollect_EmitsPoolMetrics(t *testing.T) {
+	cpu := 12.5
+	source := &fakeMetricsSource{metrics: &metrics.Metrics{
+		Timestamp: time.Now(),
+		Server:    &server.SystemInfo{NodeType: server.NodeDocker, OS: "linux", Architecture: "arm64", CPULimit: 4, MemoryLimitMB: 2048},
+		Fpm: map[string]*phpfpm.Result{
+			"unix:///run/php-fpm.sock": {
+				Pools: map[string]phpfpm.Pool{
+					"www": {
+						Name:                "www",
+						AcceptedConnections: 42,
+						ActiveProcesses:     3,
+						IdleProcesses:       7,
+						TotalProcesses:      10,
+						MaxChildrenReached:  1,
+						ProcessesCpu:        &cpu,
+					},
+				},
+			},
+		},
+		Errors: map[string]string{},
+	}}
+
+	families := gather(t, source)
+
+	if source.calls != 1 {
+		t.Errorf("Expected the source to be consulted once, got %d", source.calls)
+	}
+
+	up, ok := families["phpfpm_up"]
+	if !ok {
+		t.Fatalf("Expected phpfpm_up to be emitted")
+	}
+	if got := up.GetMetric()[0].GetGauge().GetValue(); got != 1 {
+		t.Errorf("Expected phpfpm_up to be 1, got %v", got)
+	}
+
+	assertGauge(t, families, "phpfpm_active_processes", 3)
+	assertGauge(t, families, "phpfpm_idle_processes", 7)
+	assertGauge(t, families, "phpfpm_processes_cpu_avg", cpu)
+
+	if _, ok := families["phpfpm_accepted_connections"]; !ok {
+		t.Errorf("Expected phpfpm_accepted_connections to be emitted")
+	}
+}
+
+func TestCollect_ReportsScrapeFailure(t *testing.T) {
+	source := &fakeMetricsSource{err: errors.New("php-fpm unreachable")}
+
+	families := gather(t, source)
+
+	assertGauge(t, families, "phpfpm_up", 0)
+
+	// A failed scrape has to be distinguishable from a successful one that
+	// happened to find no pools.
+	if _, ok := families["phpfpm_scrape_success"]; !ok {
+		t.Fatalf("Expected phpfpm_scrape_success to be emitted")
+	}
+	assertGauge(t, families, "phpfpm_scrape_success", 0)
+}
+
+func TestCollect_ReportsScrapeSuccess(t *testing.T) {
+	source := &fakeMetricsSource{metrics: &metrics.Metrics{
+		Timestamp: time.Now(),
+		Fpm:       map[string]*phpfpm.Result{},
+		Errors:    map[string]string{},
+	}}
+
+	families := gather(t, source)
+
+	assertGauge(t, families, "phpfpm_scrape_success", 1)
+}
+
+func assertGauge(t *testing.T, families map[string]*dto.MetricFamily, name string, want float64) {
+	t.Helper()
+
+	family, ok := families[name]
+	if !ok {
+		t.Errorf("Expected %s to be emitted", name)
+		return
+	}
+
+	if got := family.GetMetric()[0].GetGauge().GetValue(); got != want {
+		t.Errorf("Expected %s to be %v, got %v", name, want, got)
 	}
 }
