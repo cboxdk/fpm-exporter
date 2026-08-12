@@ -13,13 +13,13 @@ Cbox FPM Exporter is a lightweight, Go-based Prometheus exporter for PHP-FPM and
 
 ## Documentation
 
-📖 **Full documentation available at [cbox.dk/docs/fpm-exporter](https://cbox.dk/docs/fpm-exporter/v1/introduction)**
+📖 **Full documentation available at [cbox.dk/docs/fpm-exporter](https://cbox.dk/docs/fpm-exporter)**
 
 Or browse the [docs folder](./docs) for:
-- [Installation](./docs/installation.md)
+- [Installation](./docs/getting-started/installation.md)
 - [Quickstart](./docs/quickstart.md)
-- [Configuration](./docs/configuration.md)
-- [Metrics Reference](./docs/metrics-reference.md)
+- [Configuration](./docs/configuration/reference.md)
+- [Metrics Reference](./docs/reference/metrics.md)
 
 ## Quickstart
 
@@ -67,7 +67,7 @@ laravel:
       redis: ["default", "emails"]
 ```
 
-See [Configuration Reference](./docs/configuration.md) for all options.
+See [Configuration Reference](./docs/configuration/reference.md) for all options.
 
 ## Metrics
 
@@ -89,7 +89,7 @@ laravel_queue_size{site="App",connection="redis",queue="default"} 42
 laravel_debug_mode{site="App"} 0
 ```
 
-See [Metrics Reference](./docs/metrics-reference.md) for the complete list.
+See [Metrics Reference](./docs/reference/metrics.md) for the complete list.
 
 ## Building
 
