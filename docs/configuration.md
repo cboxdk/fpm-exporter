@@ -24,26 +24,48 @@ fpm-exporter serve [flags]
 | `--config` | Path to config file | - |
 | `--autodiscover` | Auto-discover PHP-FPM pools | `true` |
 | `--log-level` | Log level (debug, info, warn, error) | `info` |
-| `--laravel` | Laravel site config (repeatable) | - |
+| `--laravel` | Laravel site shorthand (`path` or `name:path`, repeatable) | - |
+| `--laravel-site` | Laravel site property (`key=value`, repeatable) | - |
+| `--laravel-config` | Path to a Laravel sites YAML file | - |
 
 ### Laravel Flag Format
 
+For simple sites, use the shorthand syntax:
+
 ```bash
---laravel "name=SiteName,path=/path/to/laravel,connection=redis,queues=default|emails"
+# Path only (name defaults to "App")
+--laravel /path/to/laravel
+
+# Name and path
+--laravel SiteName:/path/to/laravel
 ```
 
-Parameters:
-- `name` - Identifier for the site (default: "App")
-- `path` - **Required** - Path to Laravel application root
-- `connection` - Queue connection name (redis, database, sqs, etc.)
-- `queues` - Pipe-separated list of queue names
+For queue monitoring and other options, use repeatable `--laravel-site` flags:
+
+```bash
+fpm-exporter serve \
+  --laravel-site name=SiteName \
+  --laravel-site path=/path/to/laravel \
+  --laravel-site enable_app_info=true \
+  --laravel-site queues.redis=default,emails
+```
 
 Multiple sites:
 
 ```bash
 fpm-exporter serve \
-  --laravel "name=Site1,path=/var/www/site1,connection=redis,queues=default" \
-  --laravel "name=Site2,path=/var/www/site2,connection=database,queues=jobs|emails"
+  --laravel-site name=Site1 \
+  --laravel-site path=/var/www/site1 \
+  --laravel-site queues.redis=default \
+  --laravel-site name=Site2 \
+  --laravel-site path=/var/www/site2 \
+  --laravel-site queues.database=jobs,emails
+```
+
+For complex setups, load the `laravel` section from a dedicated YAML file:
+
+```bash
+fpm-exporter serve --laravel-config /etc/cbox/laravel-sites.yaml
 ```
 
 ## Environment Variables
@@ -65,6 +87,15 @@ All environment variables use the `CBOX_` prefix:
 | `CBOX_LOGGING_LEVEL` | Log level | `info` |
 | `CBOX_LOGGING_FORMAT` | Log format (text, json) | `json` |
 | `CBOX_LOGGING_COLOR` | Enable colored output | `true` |
+| `CBOX_LARAVEL_SITES` | Laravel sites as a JSON array | - |
+| `CBOX_LARAVEL_CONFIG` | Path to a Laravel sites YAML file | - |
+
+Example:
+
+```bash
+export CBOX_LARAVEL_SITES='[{"name":"App","path":"/var/www/html","queues":{"redis":["default"]}}]'
+fpm-exporter serve
+```
 
 ## YAML Configuration
 
@@ -144,6 +175,16 @@ phpfpm:
 
 ## Laravel Configuration
 
+Laravel configuration sources use the following precedence, from highest to lowest:
+
+1. `--laravel-site`
+2. `--laravel`
+3. `CBOX_LARAVEL_SITES`
+4. `--laravel-config`
+5. `CBOX_LARAVEL_CONFIG`
+
+Each site requires a unique `name`, an existing `path`, and an `artisan` file in that path.
+
 ### Basic Setup
 
 ```yaml
@@ -221,7 +262,7 @@ CBOX_DEBUG=true \
 CBOX_LOGGING_LEVEL=debug \
 CBOX_LOGGING_FORMAT=text \
 fpm-exporter serve \
-  --laravel "name=Dev,path=/home/dev/app"
+  --laravel Dev:/home/dev/app
 ```
 
 ### Multiple Applications
