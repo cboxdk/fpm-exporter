@@ -97,19 +97,19 @@ func getPHPConfig(ctx context.Context, cfg config.FPMPoolConfig) (map[string]int
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial FastCGI: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	confScript := `<?php header("Content-Type: application/json"); echo json_encode(ini_get_all());`
 	tmpConfFile, err := os.CreateTemp("/tmp", "fpm-config-*.php")
-	defer os.Remove(tmpConfFile.Name())
+	defer func() { _ = os.Remove(tmpConfFile.Name()) }()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp PHP config script: %w", err)
 	}
 	if _, err := tmpConfFile.WriteString(confScript); err != nil {
-		tmpConfFile.Close()
+		_ = tmpConfFile.Close()
 		return nil, fmt.Errorf("failed to write config PHP script: %w", err)
 	}
-	tmpConfFile.Close()
+	_ = tmpConfFile.Close()
 
 	scriptPath := tmpConfFile.Name()
 	confEnv := map[string]string{
@@ -123,7 +123,7 @@ func getPHPConfig(ctx context.Context, cfg config.FPMPoolConfig) (map[string]int
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, resp.Body); err != nil {
 		return nil, fmt.Errorf("failed to read FastCGI config response: %w", err)

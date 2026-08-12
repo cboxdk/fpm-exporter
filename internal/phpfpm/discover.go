@@ -121,7 +121,7 @@ func parseSocket(socket string) string {
 		for _, candidate := range try {
 			conn, err := net.DialTimeout("tcp", candidate, 500*time.Millisecond)
 			if err == nil {
-				conn.Close()
+				_ = conn.Close()
 				resolved = candidate
 				break
 			} else {

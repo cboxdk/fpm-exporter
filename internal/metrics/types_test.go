@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -213,8 +214,8 @@ func TestMetrics_LaravelOmitEmpty(t *testing.T) {
 		t.Fatalf("Failed to marshal Metrics with empty Laravel: %v", err)
 	}
 
-	jsonStr = string(jsonData)
-
-	// Empty Laravel map should still be included (omitempty only applies to nil)
-	// This is Go's default behavior for maps
+	// omitempty drops empty maps too, not just nil ones.
+	if strings.Contains(string(jsonData), "laravel") {
+		t.Errorf("Expected an empty Laravel map to be omitted, got %s", jsonData)
+	}
 }

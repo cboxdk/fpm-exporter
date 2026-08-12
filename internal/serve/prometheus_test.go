@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cboxdk/fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/laravel"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -224,7 +225,7 @@ func TestStartPrometheusServer_MetricsEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get metrics: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -253,7 +254,7 @@ func TestStartPrometheusServer_JSONEndpoint(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockMetrics)
+		_ = json.NewEncoder(w).Encode(mockMetrics)
 	})
 
 	server := httptest.NewServer(mux)
@@ -264,7 +265,7 @@ func TestStartPrometheusServer_JSONEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get JSON: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -540,9 +541,8 @@ func TestPrometheusCollector_Collect_ConfigEdgeCases(t *testing.T) {
 	ch2 := make(chan prometheus.Metric, 50)
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
-				// Expected to panic with nil config, this is acceptable
-			}
+			// A nil config may panic here; that is acceptable for this test.
+			_ = recover()
 			close(ch2)
 		}()
 		nilCollector.Collect(ch2)
@@ -632,5 +632,83 @@ func TestPrometheusCollector_Collect_ErrorRecovery(t *testing.T) {
 		if metricCount == 0 {
 			t.Errorf("Collection %d produced no metrics", i+1)
 		}
+	}
+}
+
+// `artisan about --json` only reports what the app actually exposes, so every
+// optional field can be absent. A missing key must skip the metric, never panic
+// the collector -- a panic here takes the whole exporter down, not just a scrape.
+func TestCollectLaravel_NilAppInfoFields(t *testing.T) {
+	pc := NewPrometheusCollector(&config.Config{})
+
+	laravelMetrics := map[string]*laravel.LaravelMetrics{
+		"site-with-empty-info": {Info: &laravel.AppInfo{}},
+		"site-with-nil-info":   {},
+		"nil-site":             nil,
+	}
+
+	ch := make(chan prometheus.Metric, 64)
+	pc.collectLaravel(ch, laravelMetrics)
+	close(ch)
+
+	var names []string
+	for m := range ch {
+		names = append(names, m.Desc().String())
+	}
+
+	// The four cache gauges plus laravel_info are always safe to emit; the
+	// pointer-valued environment and driver metrics must be skipped.
+	if len(names) != 5 {
+		t.Errorf("Expected 5 metrics from an empty AppInfo, got %d: %v", len(names), names)
+	}
+
+	for _, name := range names {
+		if strings.Contains(name, "laravel_driver_info") ||
+			strings.Contains(name, "laravel_debug_mode") ||
+			strings.Contains(name, "laravel_maintenance_mode") {
+			t.Errorf("Expected no metric for an absent field, got %s", name)
+		}
+	}
+}
+
+func TestCollectLaravel_PopulatedAppInfo(t *testing.T) {
+	pc := NewPrometheusCollector(&config.Config{})
+
+	version := "12.0.0"
+	phpVersion := "8.4.1"
+	environment := "production"
+	debug := laravel.BoolString(true)
+	redis := "redis"
+	logs := laravel.StringOrSlice{"stack", "daily"}
+
+	info := &laravel.AppInfo{}
+	info.Environment.LaravelVersion = &version
+	info.Environment.PHPVersion = &phpVersion
+	info.Environment.Environment = &environment
+	info.Environment.DebugMode = &debug
+	info.Drivers.Queue = &redis
+	info.Drivers.Logs = &logs
+
+	ch := make(chan prometheus.Metric, 64)
+	pc.collectLaravel(ch, map[string]*laravel.LaravelMetrics{"app": {Info: info}})
+	close(ch)
+
+	var drivers, debugModes int
+	for m := range ch {
+		desc := m.Desc().String()
+		if strings.Contains(desc, "laravel_driver_info") {
+			drivers++
+		}
+		if strings.Contains(desc, "laravel_debug_mode") {
+			debugModes++
+		}
+	}
+
+	// One queue driver plus the two log drivers.
+	if drivers != 3 {
+		t.Errorf("Expected 3 driver metrics, got %d", drivers)
+	}
+	if debugModes != 1 {
+		t.Errorf("Expected 1 debug mode metric, got %d", debugModes)
 	}
 }

@@ -60,11 +60,21 @@ type LaravelConfig struct {
 	EnableAppInfo bool                `mapstructure:"enable_app_info" yaml:"enable_app_info" json:"enable_app_info"` // Collect `php artisan about` metrics
 	PHPConfig     *PHPConfig          `mapstructure:"php_config" yaml:"php_config" json:"php_config"`                // Optional override of global PHP config
 	Queues        map[string][]string `mapstructure:"queues" yaml:"queues" json:"queues"`                            // Map of connection name to list of queue names
+	// Timeout bounds each artisan invocation for this site. Falls back to
+	// DefaultLaravelTimeout.
+	Timeout time.Duration `mapstructure:"timeout" yaml:"timeout" json:"timeout"`
 }
+
+// DefaultLaravelTimeout bounds a single artisan invocation. Booting a Laravel
+// app is slow, so this is generous compared to the FPM socket timeouts.
+const DefaultLaravelTimeout = 10 * time.Second
 
 type MonitorConfig struct {
 	ListenAddr string `mapstructure:"listen_addr"`
 	EnableJson bool   `mapstructure:"enable_json"`
+	// ScrapeTimeout bounds a single /metrics or /json collection. Keep it below
+	// Prometheus' own scrape_timeout.
+	ScrapeTimeout time.Duration `mapstructure:"scrape_timeout"`
 }
 
 func Load() (*Config, error) {
@@ -82,6 +92,7 @@ func Load() (*Config, error) {
 
 	viper.SetDefault("monitor.listen_addr", ":9114")
 	viper.SetDefault("monitor.enable_json", true)
+	viper.SetDefault("monitor.scrape_timeout", "15s")
 
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "json")

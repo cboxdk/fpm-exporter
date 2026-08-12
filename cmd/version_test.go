@@ -106,7 +106,7 @@ func TestVersionCommand_RunFunction(t *testing.T) {
 			outputChan := make(chan string)
 			go func() {
 				var buf bytes.Buffer
-				io.Copy(&buf, r)
+				_, _ = io.Copy(&buf, r)
 				outputChan <- buf.String()
 			}()
 
@@ -116,7 +116,7 @@ func TestVersionCommand_RunFunction(t *testing.T) {
 			versionCmd.Run(mockCmd, mockArgs)
 
 			// Restore stdout and get output
-			w.Close()
+			_ = w.Close()
 			os.Stdout = originalStdout
 			output := <-outputChan
 
@@ -179,12 +179,12 @@ func TestVersionCommand_OutputFormat(t *testing.T) {
 	versionCmd.Run(&cobra.Command{}, []string{})
 
 	// Close write end and restore stdout
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	// Read the output
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	// Test format
