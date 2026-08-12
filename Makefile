@@ -63,6 +63,7 @@ sbom:
 	$(GOCMD) run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.10.0 \
 		mod -json -licenses -assert-licenses -noserial -notimestamp \
 		-output-version 1.5 -output sbom.json .
+	$(GOCMD) run ./tools/sbomnorm sbom.json
 
 sbom-check: sbom
 	git diff --exit-code sbom.json
