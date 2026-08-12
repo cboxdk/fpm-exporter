@@ -23,11 +23,23 @@ func GetMetrics(ctx context.Context, cfg *config.Config) (*Metrics, error) {
 	}
 
 	if cfg.PHPFpm.Enabled {
-		fpmResults, err := phpfpm.GetMetrics(ctx, cfg)
+		outcomes, err := phpfpm.GetMetrics(ctx, cfg)
+		out.FpmPools = outcomes
+
+		// Successful pools keep the published /json shape; failures are
+		// reported per pool so the collector can emit up=0 for each one.
+		out.Fpm = make(map[string]*phpfpm.Result, len(outcomes))
+		for _, outcome := range outcomes {
+			if outcome.Err != nil {
+				out.Errors["fpm:"+outcome.Name] = outcome.Err.Error()
+				continue
+			}
+			out.Fpm[outcome.Socket] = outcome.Result
+		}
+
 		if err != nil {
 			out.Errors["fpm"] = err.Error()
-		} else {
-			out.Fpm = fpmResults
+			return out, err
 		}
 	}
 

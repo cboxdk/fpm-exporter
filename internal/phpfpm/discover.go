@@ -15,6 +15,7 @@ import (
 )
 
 type DiscoveredFPM struct {
+	Name         string
 	ConfigPath   string
 	StatusPath   string
 	Binary       string
@@ -84,6 +85,7 @@ func DiscoverFPMProcesses() ([]DiscoveredFPM, error) {
 			cliBinary, _ := findMatchingCliBinary(exe)
 
 			found = append(found, DiscoveredFPM{
+				Name:         poolName,
 				ConfigPath:   config,
 				StatusPath:   status,
 				Binary:       exe,

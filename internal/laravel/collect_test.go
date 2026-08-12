@@ -4,9 +4,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/cboxdk/fpm-exporter/internal/config"
 )
@@ -200,16 +201,33 @@ func TestCollect_PHPBinarySelection(t *testing.T) {
 
 // Each site boots its own PHP process, so collecting them in sequence made a
 // scrape cost the sum of every site's boot time.
+//
+// This asserts overlap rather than elapsed time: a wall-clock budget is a
+// coin flip on a loaded machine, and this test previously failed under
+// `go test ./...` for that reason.
 func TestCollect_RunsSitesConcurrently(t *testing.T) {
-	const (
-		sites     = 4
-		sleepFor  = 300 * time.Millisecond
-		tolerance = 3 * sleepFor // sequential would be 4x sleepFor
-	)
+	if runtime.NumCPU() < 2 {
+		t.Skip("collection is bounded by NumCPU; overlap is impossible on 1 CPU")
+	}
+
+	const sites = 4
 
 	dir := t.TempDir()
+	inflight := filepath.Join(dir, "inflight")
+	if err := os.MkdirAll(inflight, 0755); err != nil {
+		t.Fatalf("Failed to create inflight dir: %v", err)
+	}
+
+	// Each invocation registers itself, samples how many peers are registered
+	// at that moment, then deregisters.
 	fakePHP := filepath.Join(dir, "fake-php")
-	script := "#!/bin/sh\nsleep " + strconv.FormatFloat(sleepFor.Seconds(), 'f', 2, 64) + "\necho '{}'\n"
+	script := "#!/bin/sh\n" +
+		"me=\"" + inflight + "/$$\"\n" +
+		"touch \"$me\"\n" +
+		"sleep 0.3\n" +
+		"ls \"" + inflight + "\" | wc -l >> \"" + dir + "/observed\"\n" +
+		"rm -f \"$me\"\n" +
+		"echo '{}'\n"
 	if err := os.WriteFile(fakePHP, []byte(script), 0755); err != nil {
 		t.Fatalf("Failed to write fake php: %v", err)
 	}
@@ -223,20 +241,31 @@ func TestCollect_RunsSitesConcurrently(t *testing.T) {
 		})
 	}
 
-	start := time.Now()
 	result, errs := Collect(context.Background(), cfg)
-	elapsed := time.Since(start)
 
 	if len(errs) != 0 {
 		t.Fatalf("Unexpected errors: %v", errs)
 	}
-
 	if len(result) != sites {
 		t.Errorf("Expected %d sites, got %d", sites, len(result))
 	}
 
-	if elapsed > tolerance {
-		t.Errorf("Expected sites to be collected concurrently; %d sites took %s", sites, elapsed)
+	observed, err := os.ReadFile(filepath.Join(dir, "observed"))
+	if err != nil {
+		t.Fatalf("Failed to read observations: %v", err)
+	}
+
+	peak := 0
+	for _, line := range strings.Fields(string(observed)) {
+		n, convErr := strconv.Atoi(line)
+		if convErr != nil {
+			t.Fatalf("Unexpected observation %q: %v", line, convErr)
+		}
+		peak = max(peak, n)
+	}
+
+	if peak < 2 {
+		t.Errorf("Expected at least two sites in flight at once, peak was %d", peak)
 	}
 }
 

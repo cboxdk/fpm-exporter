@@ -90,6 +90,7 @@ var rootCmd = &cobra.Command{
 				logging.L().Debug("Cbox Discovered PHP-FPM Processes", "pools", discovered)
 				for _, d := range discovered {
 					Config.PHPFpm.Pools = append(Config.PHPFpm.Pools, config.FPMPoolConfig{
+						Name:         d.Name,
 						Socket:       d.Socket,
 						StatusSocket: d.StatusSocket,
 						StatusPath:   d.StatusPath,

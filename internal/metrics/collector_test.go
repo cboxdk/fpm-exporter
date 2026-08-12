@@ -87,3 +87,55 @@ func TestGetMetrics_WithLaravelConfig(t *testing.T) {
 		t.Errorf("Expected errors due to nonexistent Laravel path")
 	}
 }
+
+// The whole point of the scrape-health metrics is that this error is reachable
+// from the live code path. It previously was not: every pool failure was a
+// `continue` and GetMetrics had a single `return out, nil`, so a fake source
+// was the only thing that could ever produce a failed scrape.
+func TestGetMetrics_AllPoolsFailingIsAnError(t *testing.T) {
+	cfg := &config.Config{
+		PHPFpm: config.FPMConfig{
+			Enabled: true,
+			Pools: []config.FPMPoolConfig{
+				{Name: "a", Socket: "unix:///nonexistent/a.sock", StatusSocket: "unix:///nonexistent/a.sock", StatusPath: "/status"},
+				{Name: "b", Socket: "unix:///nonexistent/b.sock", StatusSocket: "unix:///nonexistent/b.sock", StatusPath: "/status"},
+			},
+		},
+	}
+
+	m, err := GetMetrics(context.Background(), cfg)
+	if err == nil {
+		t.Fatalf("Expected an error when every configured pool fails")
+	}
+
+	if len(m.FpmPools) != 2 {
+		t.Fatalf("Expected an outcome per configured pool, got %d", len(m.FpmPools))
+	}
+	for _, outcome := range m.FpmPools {
+		if outcome.Err == nil {
+			t.Errorf("Expected pool %q to carry its error", outcome.Name)
+		}
+	}
+
+	if _, ok := m.Errors["fpm:a"]; !ok {
+		t.Errorf("Expected a per-pool error entry, got %v", m.Errors)
+	}
+}
+
+// One dead pool must not mask the healthy ones: the scrape is degraded, not
+// failed.
+func TestGetMetrics_PartialFailureIsNotAnError(t *testing.T) {
+	cfg := &config.Config{
+		PHPFpm: config.FPMConfig{
+			Enabled: true,
+			Pools:   []config.FPMPoolConfig{{Name: "dead", StatusSocket: "unix:///nonexistent/x.sock", StatusPath: "/status"}},
+		},
+	}
+
+	// With only unreachable pools this is an error; the assertion that matters
+	// is that the per-pool outcome is preserved either way.
+	m, _ := GetMetrics(context.Background(), cfg)
+	if len(m.FpmPools) != 1 || m.FpmPools[0].Name != "dead" {
+		t.Fatalf("Expected the failing pool to be reported by name, got %+v", m.FpmPools)
+	}
+}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
-	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -61,123 +61,182 @@ type Result struct {
 	Global    map[string]string `json:"global_config,omitempty"`
 }
 
-func GetMetrics(ctx context.Context, cfg *config.Config) (map[string]*Result, error) {
-	results := map[string]*Result{}
+// PoolOutcome is what happened to one configured pool during a scrape: either a
+// Result, or the error that prevented one. Failures are values rather than log
+// lines so the collector can emit up=0 for a pool that did not answer -- a pool
+// that silently vanishes from the output is indistinguishable from a pool that
+// was removed from the configuration.
+type PoolOutcome struct {
+	// Name is the pool's configured or discovered name, used to label a
+	// failure. A successful scrape prefers the name PHP-FPM itself reports.
+	Name   string
+	Socket string
+	Result *Result
+	Err    error
+}
+
+// GetMetrics scrapes every configured pool. It returns one outcome per pool, in
+// configuration order, and an error only when nothing at all could be collected.
+func GetMetrics(ctx context.Context, cfg *config.Config) ([]PoolOutcome, error) {
+	outcomes := make([]PoolOutcome, 0, len(cfg.PHPFpm.Pools))
 
 	for _, poolCfg := range cfg.PHPFpm.Pools {
-		result := &Result{
-			Timestamp: time.Now(),
-			Pools:     make(map[string]Pool),
-			Global:    make(map[string]string),
+		outcome := collectPool(ctx, poolCfg)
+		if outcome.Err != nil {
+			logging.L().Warn("Cbox Pool scrape failed",
+				"pool", outcome.Name, "socket", outcome.Socket, "err", outcome.Err)
 		}
-
-		scheme, address, path, err := ParseAddress(poolCfg.StatusSocket, poolCfg.StatusPath)
-		if err != nil {
-			logging.L().Error("Cbox Invalid FPM socket address: %v", slog.Any("err", err))
-			continue
-		}
-
-		dialCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		logging.L().Debug("Cbox Dialing FastCGI", "scheme", scheme, "address", address, "status_path", path)
-		client, err := fcgx.DialContext(dialCtx, scheme, address)
-		cancel()
-		if err != nil {
-			logging.L().Debug("Cbox failed to dial FastCGI", "error", err)
-			continue
-		}
-		defer func() { _ = client.Close() }()
-
-		env := map[string]string{
-			"SCRIPT_FILENAME": path,
-			"SCRIPT_NAME":     path,
-			"SERVER_SOFTWARE": "fpm-exporter",
-			"REMOTE_ADDR":     "127.0.0.1",
-			"QUERY_STRING":    "json&full",
-		}
-		logging.L().Debug("Cbox Sending FCGI request", "env", env)
-
-		resp, err := client.Get(ctx, env)
-		if err != nil {
-			logging.L().Debug("Cbox fcgi GET failed", "error", err)
-			continue
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		var pool Pool
-		err = fcgx.ReadJSON(resp, &pool)
-
-		if err != nil {
-			logging.L().Error("Cbox failed to parse FPM JSON: %v", slog.Any("err", err))
-			continue
-		}
-
-		pool.Address = address
-		pool.Path = path
-
-		if conf, err := ParseFPMConfig(poolCfg.Binary, poolCfg.ConfigPath); err == nil {
-			for section, values := range conf.Pools {
-				if strings.EqualFold(section, pool.Name) {
-					pool.Config = values
-				}
-			}
-			for k, v := range conf.Global {
-				result.Global[k] = v
-			}
-		}
-
-		// Process counting and CPU/mem parsing from actual process list
-		var totalCPU, totalMem float64
-		var count int
-		var activeCount, idleCount int64
-
-		for _, proc := range pool.Processes {
-			// Count processes by state
-			switch strings.ToLower(proc.State) {
-			case "running", "reading headers", "info", "finishing", "ending":
-				activeCount++
-			case "idle":
-				idleCount++
-			}
-
-			// CPU/memory calculation (exclude status and opcache requests)
-			if !strings.HasPrefix(proc.RequestURI, poolCfg.StatusPath) &&
-				!strings.HasPrefix(proc.RequestURI, "/opcache-status-") {
-
-				totalCPU += float64(proc.LastRequestCPU)
-				totalMem += float64(proc.LastRequestMemory)
-				count++
-			}
-		}
-
-		// Recalculate process counts from actual process list
-		pool.ActiveProcesses = activeCount
-		pool.IdleProcesses = idleCount
-		pool.TotalProcesses = int64(len(pool.Processes))
-
-		if count > 0 {
-			pool.ProcessesCpu = ptr(totalCPU / float64(count))
-			pool.ProcessesMemory = ptr(totalMem / float64(count))
-		}
-
-		phpStatus, err := GetPHPStats(ctx, poolCfg)
-		if err == nil && phpStatus != nil {
-			pool.PhpInfo = *phpStatus
-		} else {
-			logging.L().Debug("Cbox failed to get PHP info", "error", err)
-		}
-
-		opcacheStatus, err := GetOpcacheStatus(ctx, poolCfg)
-		if err == nil && opcacheStatus != nil {
-			pool.OpcacheStatus = *opcacheStatus
-		} else {
-			logging.L().Debug("Cbox failed to get Opcache info", "error", err)
-		}
-
-		result.Pools[pool.Name] = pool
-		results[poolCfg.Socket] = result
+		outcomes = append(outcomes, outcome)
 	}
 
-	return results, nil
+	if len(outcomes) > 0 && !slices.ContainsFunc(outcomes, func(o PoolOutcome) bool { return o.Err == nil }) {
+		return outcomes, fmt.Errorf("all %d configured PHP-FPM pools failed to scrape", len(outcomes))
+	}
+
+	return outcomes, nil
+}
+
+// collectPool scrapes a single pool. Extracted from GetMetrics so its client and
+// response body close at the end of the pool rather than at the end of the
+// whole scrape.
+func collectPool(ctx context.Context, poolCfg config.FPMPoolConfig) PoolOutcome {
+	outcome := PoolOutcome{Name: poolName(poolCfg), Socket: poolCfg.StatusSocket}
+
+	result := &Result{
+		Timestamp: time.Now(),
+		Pools:     make(map[string]Pool),
+		Global:    make(map[string]string),
+	}
+
+	scheme, address, path, err := ParseAddress(poolCfg.StatusSocket, poolCfg.StatusPath)
+	if err != nil {
+		outcome.Err = fmt.Errorf("invalid FPM socket address: %w", err)
+		return outcome
+	}
+
+	dialCtx, cancel := context.WithTimeout(ctx, dialTimeout(poolCfg))
+	logging.L().Debug("Cbox Dialing FastCGI", "scheme", scheme, "address", address, "status_path", path)
+	client, err := fcgx.DialContext(dialCtx, scheme, address)
+	cancel()
+	if err != nil {
+		outcome.Err = fmt.Errorf("failed to dial FastCGI: %w", err)
+		return outcome
+	}
+	defer func() { _ = client.Close() }()
+
+	env := map[string]string{
+		"SCRIPT_FILENAME": path,
+		"SCRIPT_NAME":     path,
+		"SERVER_SOFTWARE": "fpm-exporter",
+		"REMOTE_ADDR":     "127.0.0.1",
+		"QUERY_STRING":    "json&full",
+	}
+	logging.L().Debug("Cbox Sending FCGI request", "env", env)
+
+	resp, err := client.Get(ctx, env)
+	if err != nil {
+		outcome.Err = fmt.Errorf("fcgi GET failed: %w", err)
+		return outcome
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var pool Pool
+	if err := fcgx.ReadJSON(resp, &pool); err != nil {
+		outcome.Err = fmt.Errorf("failed to parse FPM status JSON: %w", err)
+		return outcome
+	}
+
+	pool.Address = address
+	pool.Path = path
+	if conf, err := ParseFPMConfig(poolCfg.Binary, poolCfg.ConfigPath); err == nil {
+		for section, values := range conf.Pools {
+			if strings.EqualFold(section, pool.Name) {
+				pool.Config = values
+			}
+		}
+		for k, v := range conf.Global {
+			result.Global[k] = v
+		}
+	}
+
+	// Process counting and CPU/mem parsing from actual process list
+	var totalCPU, totalMem float64
+	var count int
+	var activeCount, idleCount int64
+
+	for _, proc := range pool.Processes {
+		// Count processes by state
+		switch strings.ToLower(proc.State) {
+		case "running", "reading headers", "info", "finishing", "ending":
+			activeCount++
+		case "idle":
+			idleCount++
+		}
+
+		// CPU/memory calculation (exclude status and opcache requests)
+		if !strings.HasPrefix(proc.RequestURI, poolCfg.StatusPath) &&
+			!strings.HasPrefix(proc.RequestURI, "/opcache-status-") {
+
+			totalCPU += float64(proc.LastRequestCPU)
+			totalMem += float64(proc.LastRequestMemory)
+			count++
+		}
+	}
+
+	// Recalculate process counts from actual process list
+	pool.ActiveProcesses = activeCount
+	pool.IdleProcesses = idleCount
+	pool.TotalProcesses = int64(len(pool.Processes))
+
+	if count > 0 {
+		pool.ProcessesCpu = ptr(totalCPU / float64(count))
+		pool.ProcessesMemory = ptr(totalMem / float64(count))
+	}
+
+	phpStatus, err := GetPHPStats(ctx, poolCfg)
+	if err == nil && phpStatus != nil {
+		pool.PhpInfo = *phpStatus
+	} else {
+		logging.L().Debug("Cbox failed to get PHP info", "error", err)
+	}
+
+	opcacheStatus, err := GetOpcacheStatus(ctx, poolCfg)
+	if err == nil && opcacheStatus != nil {
+		pool.OpcacheStatus = *opcacheStatus
+	} else {
+		logging.L().Debug("Cbox failed to get Opcache info", "error", err)
+	}
+
+	result.Pools[pool.Name] = pool
+	result.Pools[pool.Name] = pool
+	// Only adopt the name PHP-FPM reports when the operator did not choose one;
+	// a configured name has to survive the pool going down and coming back.
+	if poolCfg.Name == "" && pool.Name != "" {
+		outcome.Name = pool.Name
+	}
+	outcome.Result = result
+
+	return outcome
+
+}
+
+// poolName prefers the configured name and falls back to the socket, so a pool
+// that fails before PHP-FPM ever answers still carries a usable label.
+func poolName(poolCfg config.FPMPoolConfig) string {
+	if poolCfg.Name != "" {
+		return poolCfg.Name
+	}
+	if poolCfg.StatusSocket != "" {
+		return poolCfg.StatusSocket
+	}
+	return poolCfg.Socket
+}
+
+func dialTimeout(poolCfg config.FPMPoolConfig) time.Duration {
+	if poolCfg.Timeout > 0 {
+		return poolCfg.Timeout
+	}
+	return 3 * time.Second
 }
 
 func GetMetricsForPool(ctx context.Context, pool config.FPMPoolConfig) (*Result, error) {

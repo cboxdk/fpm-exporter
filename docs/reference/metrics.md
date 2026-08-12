@@ -16,9 +16,24 @@ Emitted once per scrape, without labels.
 |--------|------|-------------|
 | `phpfpm_scrape_success` | gauge | Whether the last scrape collected metrics (1=yes, 0=no) |
 | `phpfpm_scrape_failures` | counter | Total failed scrapes since the exporter started |
+| `phpfpm_pools_configured` | gauge | Number of pools the exporter is configured to scrape |
 
 `phpfpm_scrape_success` distinguishes a failed scrape from a successful one that
-found no pools — in both cases `phpfpm_up` is 0.
+found no pools. A pool that cannot be reached reports `phpfpm_up 0` under its own
+`pool` and `socket` labels rather than disappearing from the output, so
+`phpfpm_up == 0` is a usable alert:
+
+```promql
+# A specific pool is down
+phpfpm_up == 0
+
+# The exporter is configured but discovered nothing
+phpfpm_pools_configured == 0
+```
+
+Give a pool an explicit `name` in the configuration if you want its label to stay
+stable while it is down — without one, a reachable pool is labelled with the name
+PHP-FPM reports and an unreachable one with its socket.
 
 ## PHP-FPM Metrics
 

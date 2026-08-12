@@ -233,14 +233,18 @@ func TestGetMetrics_ErrorHandling(t *testing.T) {
 		},
 	}
 
+	// A pool that cannot be scraped is reported as a failed outcome, not
+	// dropped: the collector needs it to emit up=0. When every configured pool
+	// fails, that is a scrape failure.
 	results, err = GetMetrics(ctx, invalidConfig)
-	if err != nil {
-		t.Errorf("Expected no error (should continue on individual pool failures), got: %v", err)
+	if err == nil {
+		t.Errorf("Expected an error when every configured pool fails")
 	}
-
-	// Should return empty results since all pools failed
-	if len(results) != 0 {
-		t.Errorf("Expected empty results with invalid config, got %d", len(results))
+	if len(results) != 1 {
+		t.Fatalf("Expected one outcome per configured pool, got %d", len(results))
+	}
+	if results[0].Err == nil {
+		t.Errorf("Expected the invalid pool to carry its error")
 	}
 
 	// Test with non-existent socket
@@ -258,13 +262,14 @@ func TestGetMetrics_ErrorHandling(t *testing.T) {
 	}
 
 	results, err = GetMetrics(ctx, nonExistentConfig)
-	if err != nil {
-		t.Errorf("Expected no error (should continue on connection failures), got: %v", err)
+	if err == nil {
+		t.Errorf("Expected an error when the only configured pool is unreachable")
 	}
-
-	// Should return empty results since connection failed
-	if len(results) != 0 {
-		t.Errorf("Expected empty results with non-existent socket, got %d", len(results))
+	if len(results) != 1 || results[0].Err == nil {
+		t.Errorf("Expected the unreachable pool to be reported with its error, got %+v", results)
+	}
+	if results[0].Result != nil {
+		t.Errorf("Expected no Result for a failed pool")
 	}
 }
 
@@ -456,15 +461,24 @@ func TestGetMetrics_PoolConfigParsing(t *testing.T) {
 		},
 	}
 
-	// This will fail to connect but should iterate through all pools
+	// Both pools fail to connect, so this is a failed scrape — but every
+	// configured pool must still come back as an outcome, in order, so the
+	// collector can report each one down individually.
 	results, err := GetMetrics(ctx, cfg)
-	if err != nil {
-		t.Errorf("Expected no error from GetMetrics (individual failures should be handled), got: %v", err)
+	if err == nil {
+		t.Errorf("Expected an error when both configured pools are unreachable")
 	}
 
-	// Results will be empty since connections fail, but function should not panic
-	if results == nil {
-		t.Errorf("Expected non-nil results map")
+	if len(results) != 2 {
+		t.Fatalf("Expected an outcome for each of the 2 configured pools, got %d", len(results))
+	}
+	for i, outcome := range results {
+		if outcome.Err == nil {
+			t.Errorf("Expected pool %d to carry an error", i)
+		}
+		if outcome.Socket == "" {
+			t.Errorf("Expected pool %d to be labelled with its socket", i)
+		}
 	}
 }
 

@@ -163,15 +163,12 @@ func TestBoolToFloat(t *testing.T) {
 
 func TestPrometheusCollector_Collect_DisabledFPM(t *testing.T) {
 	cfg := &config.Config{
-		PHPFpm: config.FPMConfig{
-			Enabled: false,
-		},
+		PHPFpm:  config.FPMConfig{Enabled: false},
 		Laravel: []config.LaravelConfig{},
 	}
 
 	collector := NewPrometheusCollector(cfg)
 
-	// Create a test registry and gather metrics
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collector)
 
@@ -180,27 +177,34 @@ func TestPrometheusCollector_Collect_DisabledFPM(t *testing.T) {
 		t.Fatalf("Failed to gather metrics: %v", err)
 	}
 
-	// Should have some metrics even with FPM disabled
-	if len(metricFamilies) == 0 {
-		t.Errorf("Expected some metrics even with FPM disabled")
-	}
-
-	// Look for the up metric indicating FPM is down
-	foundUpMetric := false
+	names := map[string]*dto.MetricFamily{}
 	for _, mf := range metricFamilies {
-		if mf.GetName() == "phpfpm_up" {
-			foundUpMetric = true
-			if len(mf.GetMetric()) > 0 {
-				value := mf.GetMetric()[0].GetGauge().GetValue()
-				if value != 0 {
-					t.Errorf("Expected phpfpm_up to be 0 when FPM disabled, got %f", value)
-				}
-			}
-		}
+		names[mf.GetName()] = mf
 	}
 
-	if !foundUpMetric {
-		t.Errorf("Expected to find phpfpm_up metric")
+	// With no pools configured there is nothing to report up or down. The old
+	// synthetic phpfpm_up{pool="none"} placeholder said nothing and could
+	// collide with a pool legitimately named "none".
+	if _, ok := names["phpfpm_up"]; ok {
+		t.Errorf("Expected no phpfpm_up series when no pools are configured")
+	}
+
+	// The honest signal for "nothing is configured" is its own gauge.
+	pools, ok := names["phpfpm_pools_configured"]
+	if !ok {
+		t.Fatalf("Expected phpfpm_pools_configured to be emitted")
+	}
+	if got := pools.GetMetric()[0].GetGauge().GetValue(); got != 0 {
+		t.Errorf("Expected phpfpm_pools_configured to be 0, got %v", got)
+	}
+
+	// The exporter itself is still healthy.
+	success, ok := names["phpfpm_scrape_success"]
+	if !ok {
+		t.Fatalf("Expected phpfpm_scrape_success to be emitted")
+	}
+	if got := success.GetMetric()[0].GetGauge().GetValue(); got != 1 {
+		t.Errorf("Expected phpfpm_scrape_success to be 1, got %v", got)
 	}
 }
 
@@ -754,8 +758,10 @@ func TestCollect_EmitsPoolMetrics(t *testing.T) {
 	source := &fakeMetricsSource{metrics: &metrics.Metrics{
 		Timestamp: time.Now(),
 		Server:    &server.SystemInfo{NodeType: server.NodeDocker, OS: "linux", Architecture: "arm64", CPULimit: 4, MemoryLimitMB: 2048},
-		Fpm: map[string]*phpfpm.Result{
-			"unix:///run/php-fpm.sock": {
+		FpmPools: []phpfpm.PoolOutcome{{
+			Name:   "www",
+			Socket: "unix:///run/php-fpm.sock",
+			Result: &phpfpm.Result{
 				Pools: map[string]phpfpm.Pool{
 					"www": {
 						Name:                "www",
@@ -768,7 +774,7 @@ func TestCollect_EmitsPoolMetrics(t *testing.T) {
 					},
 				},
 			},
-		},
+		}},
 		Errors: map[string]string{},
 	}}
 
@@ -796,11 +802,15 @@ func TestCollect_EmitsPoolMetrics(t *testing.T) {
 }
 
 func TestCollect_ReportsScrapeFailure(t *testing.T) {
+	// A source that returns nothing at all: there are no pools to name, so the
+	// only honest output is the scrape-health pair.
 	source := &fakeMetricsSource{err: errors.New("php-fpm unreachable")}
 
 	families := gather(t, source)
 
-	assertGauge(t, families, "phpfpm_up", 0)
+	if _, ok := families["phpfpm_up"]; ok {
+		t.Errorf("Expected no phpfpm_up series when the source returned nothing")
+	}
 
 	// A failed scrape has to be distinguishable from a successful one that
 	// happened to find no pools.
@@ -808,6 +818,45 @@ func TestCollect_ReportsScrapeFailure(t *testing.T) {
 		t.Fatalf("Expected phpfpm_scrape_success to be emitted")
 	}
 	assertGauge(t, families, "phpfpm_scrape_success", 0)
+}
+
+// When every pool fails, the scrape is a failure — but it still knows which
+// pools it tried, and each must report down under its own labels rather than
+// collapsing into one synthetic series.
+func TestCollect_TotalFailureStillNamesEachPool(t *testing.T) {
+	source := &fakeMetricsSource{
+		err: errors.New("all pools failed"),
+		metrics: &metrics.Metrics{
+			Timestamp: time.Now(),
+			FpmPools: []phpfpm.PoolOutcome{
+				{Name: "www", Socket: "unix:///run/www.sock", Err: errors.New("dial failed")},
+				{Name: "api", Socket: "unix:///run/api.sock", Err: errors.New("dial failed")},
+			},
+			Errors: map[string]string{},
+		},
+	}
+
+	families := gather(t, source)
+
+	assertGauge(t, families, "phpfpm_scrape_success", 0)
+
+	up, ok := families["phpfpm_up"]
+	if !ok {
+		t.Fatalf("Expected phpfpm_up to be emitted for the pools that were tried")
+	}
+	if len(up.GetMetric()) != 2 {
+		t.Fatalf("Expected one series per configured pool, got %d", len(up.GetMetric()))
+	}
+	for _, m := range up.GetMetric() {
+		if m.GetGauge().GetValue() != 0 {
+			t.Errorf("Expected every pool to report down")
+		}
+		for _, l := range m.GetLabel() {
+			if l.GetName() == "pool" && (l.GetValue() == "unknown" || l.GetValue() == "none") {
+				t.Errorf("Expected the real pool name, got the synthetic %q", l.GetValue())
+			}
+		}
+	}
 }
 
 func TestCollect_ReportsScrapeSuccess(t *testing.T) {
@@ -833,5 +882,49 @@ func assertGauge(t *testing.T, families map[string]*dto.MetricFamily, name strin
 
 	if got := family.GetMetric()[0].GetGauge().GetValue(); got != want {
 		t.Errorf("Expected %s to be %v, got %v", name, want, got)
+	}
+}
+
+// A pool that cannot be reached must report up=0 under its own labels. It used
+// to vanish from the output, which Prometheus renders as staleness — so the
+// `phpfpm_up == 0` alert the metric's help text promises could never fire.
+func TestCollect_FailedPoolReportsDown(t *testing.T) {
+	source := &fakeMetricsSource{metrics: &metrics.Metrics{
+		Timestamp: time.Now(),
+		FpmPools: []phpfpm.PoolOutcome{
+			{Name: "www", Socket: "unix:///run/www.sock", Err: errors.New("dial failed")},
+			{Name: "api", Socket: "unix:///run/api.sock", Result: &phpfpm.Result{
+				Pools: map[string]phpfpm.Pool{"api": {Name: "api"}},
+			}},
+		},
+		Fpm: map[string]*phpfpm.Result{
+			"unix:///run/api.sock": {Pools: map[string]phpfpm.Pool{"api": {Name: "api"}}},
+		},
+		Errors: map[string]string{"fpm:www": "dial failed"},
+	}}
+
+	families := gather(t, source)
+
+	up, ok := families["phpfpm_up"]
+	if !ok {
+		t.Fatalf("Expected phpfpm_up to be emitted")
+	}
+
+	got := map[string]float64{}
+	for _, m := range up.GetMetric() {
+		var pool string
+		for _, l := range m.GetLabel() {
+			if l.GetName() == "pool" {
+				pool = l.GetValue()
+			}
+		}
+		got[pool] = m.GetGauge().GetValue()
+	}
+
+	if got["www"] != 0 {
+		t.Errorf("Expected the unreachable pool to report up=0, got %v (series: %v)", got["www"], got)
+	}
+	if got["api"] != 1 {
+		t.Errorf("Expected the healthy pool to report up=1, got %v (series: %v)", got["api"], got)
 	}
 }

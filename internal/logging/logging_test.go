@@ -30,17 +30,17 @@ func TestInit_JSONFormat(t *testing.T) {
 	Init(cfg)
 
 	// Test that logger is initialized
-	if logger == nil {
+	if logger.Load() == nil {
 		t.Errorf("Expected logger to be initialized")
 	}
 
 	// Test that we get the same logger from L()
-	if L() != logger {
+	if L() != logger.Load() {
 		t.Errorf("Expected L() to return the same logger instance")
 	}
 
 	// Test logging
-	logger.Debug("test debug message")
+	L().Debug("test debug message")
 
 	_ = w.Close()
 	os.Stdout = oldStdout
@@ -67,12 +67,12 @@ func TestInit_TextFormat(t *testing.T) {
 	Init(cfg)
 
 	// Test that logger is initialized
-	if logger == nil {
+	if logger.Load() == nil {
 		t.Errorf("Expected logger to be initialized")
 	}
 
 	// Test that we get the same logger from L()
-	if L() != logger {
+	if L() != logger.Load() {
 		t.Errorf("Expected L() to return the same logger instance")
 	}
 }
@@ -131,7 +131,7 @@ func TestInit_LogLevels(t *testing.T) {
 			Init(cfg)
 
 			// Test that logger is initialized
-			if logger == nil {
+			if logger.Load() == nil {
 				t.Errorf("Expected logger to be initialized")
 			}
 
@@ -155,18 +155,20 @@ func TestL_ReturnsLogger(t *testing.T) {
 		t.Errorf("Expected L() to return a non-nil logger")
 	}
 
-	if result != logger {
+	if result != logger.Load() {
 		t.Errorf("Expected L() to return the same logger instance")
 	}
 }
 
 func TestL_BeforeInit(t *testing.T) {
-	// Reset logger to nil
-	logger = nil
+	saved := logger.Load()
+	logger.Store(nil)
+	t.Cleanup(func() { logger.Store(saved) })
 
-	result := L()
-	if result != nil {
-		t.Errorf("Expected L() to return nil when logger is not initialized")
+	// L() must never return nil: collection paths log from packages that can
+	// run before Init, and a nil logger there panics the whole process.
+	if L() == nil {
+		t.Errorf("Expected L() to fall back to the slog default before Init")
 	}
 }
 
@@ -181,7 +183,7 @@ func TestInit_SetsDefaultLogger(t *testing.T) {
 
 	// Test that the default logger is set
 	defaultLogger := slog.Default()
-	if defaultLogger != logger {
+	if defaultLogger != logger.Load() {
 		t.Errorf("Expected slog.Default() to return our logger instance")
 	}
 }
@@ -220,9 +222,22 @@ func TestInit_Formats(t *testing.T) {
 			Init(cfg)
 
 			// Test that logger is initialized
-			if logger == nil {
+			if logger.Load() == nil {
 				t.Errorf("Expected logger to be initialized")
 			}
 		})
 	}
+}
+
+// Collection paths log from packages that may run before Init — a nil logger
+// there panics the process rather than losing a line.
+func TestL_BeforeInitDoesNotPanic(t *testing.T) {
+	saved := logger.Load()
+	logger.Store(nil)
+	t.Cleanup(func() { logger.Store(saved) })
+
+	if L() == nil {
+		t.Fatalf("Expected L() to fall back to a usable logger")
+	}
+	L().Warn("this must not panic")
 }

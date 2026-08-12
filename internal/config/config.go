@@ -38,6 +38,10 @@ type FPMConfig struct {
 }
 
 type FPMPoolConfig struct {
+	// Name identifies the pool in metrics when the pool itself could not be
+	// reached. A successful scrape uses the name PHP-FPM reports; this is the
+	// fallback so a failing pool is still labelled with something meaningful.
+	Name              string        `mapstructure:"name"`
 	Socket            string        `mapstructure:"socket"`
 	StatusSocket      string        `mapstructure:"status_socket"`
 	StatusPath        string        `mapstructure:"status_path"`

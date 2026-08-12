@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/cboxdk/fpm-exporter/internal/config"
 	"github.com/cboxdk/fpm-exporter/internal/laravel"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
@@ -12,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -115,9 +117,10 @@ type PrometheusCollector struct {
 	laravelInfoDesc *prometheus.Desc
 
 	// Scrape health
-	scrapeSuccessDesc  *prometheus.Desc
-	scrapeFailuresDesc *prometheus.Desc
-	scrapeFailures     atomic.Uint64
+	scrapeSuccessDesc   *prometheus.Desc
+	scrapeFailuresDesc  *prometheus.Desc
+	poolsConfiguredDesc *prometheus.Desc
+	scrapeFailures      atomic.Uint64
 }
 
 func NewPrometheusCollector(cfg *config.Config) *PrometheusCollector {
@@ -176,8 +179,9 @@ func NewPrometheusCollectorWithSource(cfg *config.Config, source MetricsSource) 
 		rlimitFilesConfigDesc:             prometheus.NewDesc("phpfpm_rlimit_files_config", "PHP-FPM pool config: file descriptors limit per process.", labels, nil),
 
 		// System metrics
-		scrapeSuccessDesc:  prometheus.NewDesc("phpfpm_scrape_success", "Whether the last scrape collected metrics successfully (1 for yes, 0 for no).", nil, nil),
-		scrapeFailuresDesc: prometheus.NewDesc("phpfpm_scrape_failures", "Total number of failed scrapes since the exporter started.", nil, nil),
+		scrapeSuccessDesc:   prometheus.NewDesc("phpfpm_scrape_success", "Whether the last scrape collected metrics successfully (1 for yes, 0 for no).", nil, nil),
+		scrapeFailuresDesc:  prometheus.NewDesc("phpfpm_scrape_failures", "Total number of failed scrapes since the exporter started.", nil, nil),
+		poolsConfiguredDesc: prometheus.NewDesc("phpfpm_pools_configured", "Number of PHP-FPM pools the exporter is configured to scrape.", nil, nil),
 
 		systemInfoDesc:    prometheus.NewDesc("system_info", "System information", []string{"type", "os", "arch"}, nil),
 		cpuLimitDesc:      prometheus.NewDesc("system_cpu_limit", "Logical CPU limit", nil, nil),
@@ -192,6 +196,7 @@ func (pc *PrometheusCollector) Describe(ch chan<- *prometheus.Desc) {
 	// Scrape health
 	ch <- pc.scrapeSuccessDesc
 	ch <- pc.scrapeFailuresDesc
+	ch <- pc.poolsConfiguredDesc
 
 	// FPM Metrics
 	ch <- pc.upDesc
@@ -260,20 +265,31 @@ func (pc *PrometheusCollector) Collect(ch chan<- prometheus.Metric) {
 	defer cancel()
 
 	m, err := pc.source.GetMetrics(ctx, pc.cfg)
+
+	// phpfpm_scrape_failures used to be reported as a counter with the constant
+	// value 1, which made rate() meaningless. It is a real cumulative counter
+	// now, paired with a success gauge so a failed scrape is distinguishable
+	// from one that found no pools.
 	if err != nil {
-		// phpfpm_scrape_failures used to be reported as a counter with the
-		// constant value 1, which made rate() meaningless. It is a real
-		// cumulative counter now, paired with a success gauge so a failed
-		// scrape is distinguishable from one that found no pools.
 		failures := pc.scrapeFailures.Add(1)
 		ch <- prometheus.MustNewConstMetric(pc.scrapeSuccessDesc, prometheus.GaugeValue, 0)
 		ch <- prometheus.MustNewConstMetric(pc.scrapeFailuresDesc, prometheus.CounterValue, float64(failures))
-		ch <- prometheus.MustNewConstMetric(pc.upDesc, prometheus.GaugeValue, 0, "unknown", "unknown")
-		return
+
+		// A failed scrape still knows which pools it tried, so emission
+		// continues below rather than collapsing every pool into one synthetic
+		// series. Only a source that returned nothing at all has nothing to say.
+		if m == nil {
+			return
+		}
+	} else {
+		ch <- prometheus.MustNewConstMetric(pc.scrapeSuccessDesc, prometheus.GaugeValue, 1)
+		ch <- prometheus.MustNewConstMetric(pc.scrapeFailuresDesc, prometheus.CounterValue, float64(pc.scrapeFailures.Load()))
 	}
 
-	ch <- prometheus.MustNewConstMetric(pc.scrapeSuccessDesc, prometheus.GaugeValue, 1)
-	ch <- prometheus.MustNewConstMetric(pc.scrapeFailuresDesc, prometheus.CounterValue, float64(pc.scrapeFailures.Load()))
+	// Replaces the old synthetic phpfpm_up{pool="none"} placeholder: "no pools
+	// are configured" is a fact about configuration, not a pool that is down,
+	// and a real pool could legitimately be named "none".
+	ch <- prometheus.MustNewConstMetric(pc.poolsConfiguredDesc, prometheus.GaugeValue, float64(len(m.FpmPools)))
 
 	if m.Server != nil {
 		nodeType := string(m.Server.NodeType)
@@ -284,23 +300,38 @@ func (pc *PrometheusCollector) Collect(ch chan<- prometheus.Metric) {
 
 	pc.collectLaravel(ch, m.Laravel)
 
-	if m.Fpm == nil {
-		ch <- prometheus.MustNewConstMetric(pc.upDesc, prometheus.GaugeValue, 0, "unknown", "unknown")
-		return
+	// A pool that failed to answer reports up=0 under its own labels. It used
+	// to disappear from the output entirely, which Prometheus renders as
+	// staleness -- so `phpfpm_up == 0`, the alert the metric's help text
+	// promises, could never fire.
+	for _, outcome := range m.FpmPools {
+		if outcome.Err == nil {
+			continue
+		}
+		ch <- prometheus.MustNewConstMetric(pc.upDesc, prometheus.GaugeValue, 0, outcome.Name, outcome.Socket)
 	}
-	if len(m.Fpm) == 0 {
-		ch <- prometheus.MustNewConstMetric(pc.upDesc, prometheus.GaugeValue, 0, "none", "none")
-		return
-	}
-	for socket, pools := range m.Fpm {
+
+	for _, outcome := range m.FpmPools {
+		if outcome.Err != nil {
+			continue
+		}
+
+		socket := outcome.Socket
 		if socket == "" {
 			socket = "unknown"
 		}
 
-		for poolName, pool := range pools.Pools {
-			up := 1.0
+		for reportedName, pool := range outcome.Result.Pools {
+			// The configured name wins so the pool label does not change when a
+			// pool goes down and comes back: a failed pool has no reported name
+			// to use, so a healthy pool must not be labelled from a different
+			// source than a failing one.
+			poolName := outcome.Name
+			if poolName == "" {
+				poolName = reportedName
+			}
 
-			ch <- prometheus.MustNewConstMetric(pc.upDesc, prometheus.GaugeValue, up, poolName, socket)
+			ch <- prometheus.MustNewConstMetric(pc.upDesc, prometheus.GaugeValue, 1, poolName, socket)
 			ch <- prometheus.MustNewConstMetric(pc.acceptedConnectionsDesc, prometheus.CounterValue, float64(pool.AcceptedConnections), poolName, socket)
 			ch <- prometheus.MustNewConstMetric(pc.startSinceDesc, prometheus.GaugeValue, float64(pool.StartSince), poolName, socket)
 			ch <- prometheus.MustNewConstMetric(pc.listenQueueDesc, prometheus.GaugeValue, float64(pool.ListenQueue), poolName, socket)
@@ -432,7 +463,10 @@ func boolToFloat(b bool) float64 {
 	return 0
 }
 
-func StartPrometheusServer(cfg *config.Config) {
+// StartPrometheusServer serves metrics until it is signalled to stop. It returns
+// an error when it cannot serve at all -- a failure to bind is the exporter
+// failing to do its one job, and must not look like a clean exit.
+func StartPrometheusServer(cfg *config.Config) error {
 	mux := http.NewServeMux()
 
 	registry := prometheus.NewRegistry()
@@ -470,9 +504,14 @@ func StartPrometheusServer(cfg *config.Config) {
 	}
 
 	shutdown := make(chan os.Signal, 1)
-	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	// Closed once the shutdown sequence has finished, so the process does not
+	// exit from under it and skip the cleanup below.
+	stopped := make(chan struct{})
 
 	go func() {
+		defer close(stopped)
 		sig := <-shutdown
 		logging.L().Info("Cbox Shutting down", slog.Any("signal", sig.String()))
 
@@ -485,10 +524,25 @@ func StartPrometheusServer(cfg *config.Config) {
 		phpfpm.RemoveOpcacheScript()
 	}()
 
-	logging.L().Debug("Cbox Prometheus metrics server listening", slog.Any("addr", cfg.Monitor.ListenAddr))
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logging.L().Error("Cbox Failed to start Prometheus server", slog.Any("err", err))
+	listener, err := net.Listen("tcp", cfg.Monitor.ListenAddr)
+	if err != nil {
+		return fmt.Errorf("cannot listen on %s: %w", cfg.Monitor.ListenAddr, err)
 	}
+
+	// Logged at Info: without it a healthy start and a broken one look the same
+	// at the default level.
+	logging.L().Info("Cbox Metrics server listening",
+		slog.String("addr", listener.Addr().String()),
+		slog.Int("pools", len(cfg.PHPFpm.Pools)),
+		slog.Int("laravel_sites", len(cfg.Laravel)),
+		slog.Bool("json_endpoint", cfg.Monitor.EnableJson))
+
+	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("metrics server failed: %w", err)
+	}
+
+	<-stopped
+	return nil
 }
 
 // scrapeTimeout bounds one collection. It has to stay below Prometheus' own

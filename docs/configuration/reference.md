@@ -167,6 +167,7 @@ phpfpm:
 
 | Option | Description |
 |--------|-------------|
+| `name` | Pool name used in metric labels, and the label a pool keeps while it is unreachable |
 | `socket` | Main PHP-FPM socket (unix:// or tcp://) |
 | `status_socket` | Separate socket for status (optional) |
 | `status_path` | Path to status page (default: /status) |

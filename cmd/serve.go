@@ -10,9 +10,10 @@ import (
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start agent HTTP server with metrics and control endpoints",
-	Run: func(cmd *cobra.Command, args []string) {
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		logging.L().Info("Cbox Starting")
-		serve.StartPrometheusServer(Config)
+		return serve.StartPrometheusServer(Config)
 	},
 }
 
