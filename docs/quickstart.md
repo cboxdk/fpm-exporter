@@ -90,6 +90,7 @@ fpm-exporter serve --laravel MyApp:/var/www/html
 fpm-exporter serve \
   --laravel-site name=MyApp \
   --laravel-site path=/var/www/html \
+  --laravel-site appinfo=true \
   --laravel-site queues.redis=default,emails
 ```
 
@@ -100,6 +101,7 @@ Create `laravel-sites.yaml`:
 laravel:
   - name: MyApp
     path: /var/www/html
+    enable_app_info: true
     queues:
       redis:
         - default
