@@ -295,18 +295,16 @@ EOF`
 		t.Fatalf("ParseFPMConfig failed: %v", err)
 	}
 
-	// Test that NOTICE prefixes are stripped (may have leading quote if parsing is incomplete)
-	if config.Global["pid"] != "/var/run/php-fpm.pid" && config.Global["pid"] != "\"/var/run/php-fpm.pid" {
-		t.Errorf("Expected pid to be '/var/run/php-fpm.pid' or with leading quote, got '%s'", config.Global["pid"])
+	if config.Global["pid"] != "/var/run/php-fpm.pid" {
+		t.Errorf("Expected pid to be '/var/run/php-fpm.pid', got '%s'", config.Global["pid"])
 	}
 
-	// Test that quotes are stripped (may have leading quote if parsing is incomplete)
-	if config.Global["error_log"] != "/var/log/php-fpm.log" && config.Global["error_log"] != "\"/var/log/php-fpm.log" {
-		t.Errorf("Expected error_log to be '/var/log/php-fpm.log' or with leading quote, got '%s'", config.Global["error_log"])
+	if config.Global["error_log"] != "/var/log/php-fpm.log" {
+		t.Errorf("Expected error_log to be '/var/log/php-fpm.log', got '%s'", config.Global["error_log"])
 	}
 
-	if config.Global["daemonize"] != "yes" && config.Global["daemonize"] != "\"yes" {
-		t.Errorf("Expected daemonize to be 'yes' or with leading quote, got '%s'", config.Global["daemonize"])
+	if config.Global["daemonize"] != "yes" {
+		t.Errorf("Expected daemonize to be 'yes', got '%s'", config.Global["daemonize"])
 	}
 
 	// Test pool parsing
@@ -315,8 +313,8 @@ EOF`
 		t.Fatalf("Expected 'www' pool to exist")
 	}
 
-	if wwwPool["user"] != "www-data" && wwwPool["user"] != "\"www-data" {
-		t.Errorf("Expected user to be 'www-data' or with leading quote, got '%s'", wwwPool["user"])
+	if wwwPool["user"] != "www-data" {
+		t.Errorf("Expected user to be 'www-data', got '%s'", wwwPool["user"])
 	}
 
 	// Test that undefined values become empty strings
@@ -324,8 +322,8 @@ EOF`
 		t.Errorf("Expected undefined_value to be empty string, got '%s'", wwwPool["undefined_value"])
 	}
 
-	if wwwPool["pm.status_path"] != "/status" && wwwPool["pm.status_path"] != "\"/status" {
-		t.Errorf("Expected pm.status_path to be '/status' or with leading quote, got '%s'", wwwPool["pm.status_path"])
+	if wwwPool["pm.status_path"] != "/status" {
+		t.Errorf("Expected pm.status_path to be '/status', got '%s'", wwwPool["pm.status_path"])
 	}
 }
 

@@ -66,7 +66,6 @@ Labels: `pool`, `socket`
 | `phpfpm_process_request_duration` | gauge | Duration of last request (microseconds) |
 | `phpfpm_process_last_request_cpu` | gauge | CPU % of last request |
 | `phpfpm_process_last_request_memory` | gauge | Memory of last request (bytes) |
-| `phpfpm_process_current_rss` | gauge | Process RSS memory (bytes) |
 
 Labels: `pool`, `socket`, `pid`, `state` (for state metric)
 
@@ -118,7 +117,7 @@ Labels: `pool`, `socket`
 | `laravel_debug_mode` | gauge | Debug mode enabled (1=yes) |
 | `laravel_maintenance_mode` | gauge | Maintenance mode (1=yes) |
 
-Labels for `laravel_app_info`: `site`, `version`, `env`, `php_version`, `debug_mode`
+Labels for `laravel_app_info`: `site`, `version`, `php_version`, `environment`, `debug_mode`
 
 ### Cache Status
 

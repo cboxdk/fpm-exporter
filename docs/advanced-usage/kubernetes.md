@@ -54,7 +54,9 @@ spec:
           args:
             - serve
             - --laravel
-            - "name=App,path=/var/www/html"
+            - "App:/var/www/html"
+            - --laravel-site
+            - "appinfo=true"
           ports:
             - containerPort: 9114
               name: metrics
@@ -100,7 +102,6 @@ data:
       listen_addr: ":9114"
     phpfpm:
       autodiscover: true
-      poll_interval: 5s
     laravel:
       - name: App
         path: /var/www/html

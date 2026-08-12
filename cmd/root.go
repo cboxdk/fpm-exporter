@@ -16,6 +16,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// defaultSiteName labels a Laravel site the operator did not name.
+const defaultSiteName = "App"
+
 // Version that is being reported by the CLI
 var Version string
 
@@ -66,6 +69,19 @@ var rootCmd = &cobra.Command{
 		logging.Init(Config.Logging)
 		logging.L().Debug("Cbox Logging initialized", "level", Config.Logging.Level)
 		logging.L().Debug("Cbox Loaded config", "config", Config)
+
+		// Warned after logging is configured, so it lands in the operator's
+		// chosen format. The documented quickstart --
+		// `--laravel MyApp:/var/www/html` -- sets neither queues nor app info,
+		// so it configures a site that collects nothing and used to say nothing
+		// about it.
+		for _, site := range Config.Laravel {
+			if len(site.Queues) == 0 && !site.EnableAppInfo {
+				logging.L().Warn("Cbox Laravel site will collect no metrics",
+					"site", site.Name,
+					"hint", "set appinfo=true (enable_app_info in YAML) or configure queues")
+			}
+		}
 
 		// phpfpm autodiscover
 		if Config.PHPFpm.Enabled && Config.PHPFpm.Autodiscover {
@@ -172,7 +188,7 @@ func parseShorthand(shorthand string) (config.LaravelConfig, error) {
 		name = parts[0]
 		path = parts[1]
 	} else {
-		name = "App"
+		name = defaultSiteName
 		path = parts[0]
 	}
 
@@ -187,12 +203,31 @@ func parseShorthand(shorthand string) (config.LaravelConfig, error) {
 	}, nil
 }
 
-// parseRepeatableFlags parses --laravel-site key=value flags
+// parseRepeatableFlags parses --laravel-site key=value flags into sites.
+//
+// A site ends where the next one begins, and only `name` or a repeated `path`
+// can begin one. Writing the keys in the natural path-first order used to
+// silently produce a site called "App" with everything after the dropped `name`
+// discarded -- and `site` is a Prometheus label, so dashboards keyed on the name
+// you asked for came back empty with no error anywhere.
 func parseRepeatableFlags(flags []string) ([]config.LaravelConfig, error) {
-	// Group flags by site (assuming sequential flags belong to same site)
 	var sites []config.LaravelConfig
-	currentSite := config.LaravelConfig{
-		Queues: map[string][]string{},
+
+	newSite := func() config.LaravelConfig {
+		return config.LaravelConfig{Queues: map[string][]string{}}
+	}
+
+	currentSite := newSite()
+	// Tracks whether the current group has seen a name, so a name arriving
+	// after a path can be reported rather than silently reassigned.
+	named := false
+
+	flush := func() {
+		if currentSite.Path != "" || currentSite.Name != "" || len(currentSite.Queues) > 0 {
+			sites = append(sites, currentSite)
+		}
+		currentSite = newSite()
+		named = false
 	}
 
 	for _, flag := range flags {
@@ -203,7 +238,7 @@ func parseRepeatableFlags(flags []string) ([]config.LaravelConfig, error) {
 
 		key, val := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
 
-		// Handle nested queue config: queues.redis=default,emails
+		// Nested queue config: queues.redis=default,emails
 		if strings.HasPrefix(key, "queues.") {
 			connection := strings.TrimPrefix(key, "queues.")
 			queueNames := strings.Split(val, ",")
@@ -219,15 +254,21 @@ func parseRepeatableFlags(flags []string) ([]config.LaravelConfig, error) {
 
 		switch key {
 		case "name":
-			// If we encounter a new "name" and current site has data, save it
-			if currentSite.Path != "" {
-				sites = append(sites, currentSite)
-				currentSite = config.LaravelConfig{
-					Queues: map[string][]string{},
-				}
+			if named {
+				// A second name starts the next site.
+				flush()
+			} else if currentSite.Path != "" {
+				return nil, fmt.Errorf(
+					"--laravel-site name=%s came after path=%s; put name first, "+
+						"or the keys cannot be grouped into sites unambiguously", val, currentSite.Path)
 			}
 			currentSite.Name = val
+			named = true
 		case "path":
+			if currentSite.Path != "" {
+				// A second path starts the next site.
+				flush()
+			}
 			currentSite.Path = val
 		case "appinfo":
 			currentSite.EnableAppInfo = val == "true" || val == "1"
@@ -236,9 +277,15 @@ func parseRepeatableFlags(flags []string) ([]config.LaravelConfig, error) {
 		}
 	}
 
-	// Add last site if it has data
-	if currentSite.Path != "" {
-		sites = append(sites, currentSite)
+	flush()
+
+	for i := range sites {
+		if sites[i].Path == "" {
+			return nil, fmt.Errorf("--laravel-site group %q has no path", sites[i].Name)
+		}
+		if sites[i].Name == "" {
+			sites[i].Name = defaultSiteName
+		}
 	}
 
 	return sites, nil
@@ -269,15 +316,21 @@ func mergeSites(base, override []config.LaravelConfig) []config.LaravelConfig {
 	// Add base sites
 	for _, site := range base {
 		if site.Name == "" {
-			site.Name = "App"
+			site.Name = defaultSiteName
 		}
 		siteMap[site.Name] = site
 	}
 
-	// Override with new sites
+	// Override with new sites, field by field. Replacing the whole struct meant
+	// that adding a seemingly redundant `--laravel App:/same/path` on top of a
+	// working config file silently deleted every queue it was monitoring.
 	for _, site := range override {
 		if site.Name == "" {
-			site.Name = "App"
+			site.Name = defaultSiteName
+		}
+		if existing, ok := siteMap[site.Name]; ok {
+			siteMap[site.Name] = mergeSite(existing, site)
+			continue
 		}
 		siteMap[site.Name] = site
 	}
@@ -289,6 +342,30 @@ func mergeSites(base, override []config.LaravelConfig) []config.LaravelConfig {
 	}
 
 	return result
+}
+
+// mergeSite layers a higher-precedence site over a lower one, keeping any field
+// the higher one did not set.
+func mergeSite(base, override config.LaravelConfig) config.LaravelConfig {
+	merged := base
+
+	if override.Path != "" {
+		merged.Path = override.Path
+	}
+	if override.EnableAppInfo {
+		merged.EnableAppInfo = true
+	}
+	if override.PHPConfig != nil {
+		merged.PHPConfig = override.PHPConfig
+	}
+	if override.Timeout > 0 {
+		merged.Timeout = override.Timeout
+	}
+	if len(override.Queues) > 0 {
+		merged.Queues = override.Queues
+	}
+
+	return merged
 }
 
 // validateSites validates all Laravel sites

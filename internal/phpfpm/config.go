@@ -72,8 +72,12 @@ func ParseFPMConfig(FPMBinaryPath string, FPMConfigPath string) (*FPMConfig, err
 
 		if strings.Contains(line, "=") {
 			parts := strings.SplitN(line, "=", 2)
-			key := strings.TrimSpace(strings.Trim(parts[0], `"`))
-			val := strings.TrimSpace(strings.Trim(parts[1], `"`))
+			// TrimSpace first: the space after `=` used to block the leading
+			// quote from being stripped, leaving values like `"50`. php-fpm -tt
+			// normalises quotes away so nothing hit it in practice, but the
+			// ordering was still wrong -- and the test accepted either result.
+			key := strings.Trim(strings.TrimSpace(parts[0]), `"`)
+			val := strings.Trim(strings.TrimSpace(parts[1]), `"`)
 			if val == "undefined" {
 				val = ""
 			}

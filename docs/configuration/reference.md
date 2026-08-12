@@ -83,14 +83,15 @@ All environment variables use the `CBOX_` prefix:
 | `CBOX_PHPFPM_AUTODISCOVER` | Auto-discover pools | `true` |
 | `CBOX_PHPFPM_RETRIES` | Discovery retry count | `5` |
 | `CBOX_PHPFPM_RETRY_DELAY` | Delay between retries (seconds) | `2` |
-| `CBOX_PHPFPM_POLL_INTERVAL` | Metrics poll interval | `1s` |
-| `CBOX_PHP_ENABLED` | Enable PHP monitoring | `true` |
 | `CBOX_PHP_BINARY` | PHP binary path | `php` |
 | `CBOX_LOGGING_LEVEL` | Log level | `info` |
 | `CBOX_LOGGING_FORMAT` | Log format (text, json) | `json` |
 | `CBOX_LOGGING_COLOR` | Enable colored output | `true` |
 | `CBOX_LARAVEL_SITES` | Laravel sites as a JSON array | - |
 | `CBOX_LARAVEL_CONFIG` | Path to a Laravel sites YAML file | - |
+
+Every variable in this table is covered by a test asserting it actually changes
+the effective configuration, so this table and the code cannot drift apart.
 
 Example:
 
@@ -117,7 +118,6 @@ monitor:
   scrape_timeout: 15s   # Keep below Prometheus' own scrape_timeout
 
 php:
-  enabled: true
   binary: /usr/bin/php
 
 phpfpm:
@@ -125,7 +125,6 @@ phpfpm:
   autodiscover: true
   retries: 5
   retry_delay: 2
-  poll_interval: 1s
   pools: []  # Manual pool config (see below)
 
 laravel:
@@ -170,13 +169,12 @@ phpfpm:
 |--------|-------------|
 | `name` | Pool name used in metric labels, and the label a pool keeps while it is unreachable |
 | `socket` | Main PHP-FPM socket (unix:// or tcp://) |
-| `status_socket` | Separate socket for status (optional) |
-| `status_path` | Path to status page (default: /status) |
+| `status_socket` | Separate socket for status (optional; defaults to `socket`) |
+| `status_path` | Path to the status page (default `/status`) |
 | `config_path` | Path to pool config file |
 | `binary` | PHP-FPM binary path |
 | `cli_binary` | PHP CLI binary for this pool |
-| `poll_interval` | Override global poll interval |
-| `timeout` | Connection timeout |
+| `timeout` | Dial timeout for this pool (default 3s) |
 
 ## Laravel Configuration
 
@@ -264,7 +262,6 @@ monitor:
 
 phpfpm:
   autodiscover: true
-  poll_interval: 5s
 
 laravel:
   - name: Production
