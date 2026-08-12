@@ -420,7 +420,7 @@ sleep 0.1
 	// Just verify we got valid configs and no panics occurred
 	for i, config := range configs {
 		if config == nil {
-			t.Errorf("Expected config %d to be non-nil", i)
+			t.Fatalf("Expected config %d to be non-nil", i)
 		}
 		if len(config.Global) == 0 && len(config.Pools) == 0 {
 			t.Errorf("Expected config %d to have some content", i)

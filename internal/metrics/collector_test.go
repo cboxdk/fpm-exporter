@@ -156,7 +156,7 @@ func TestCollector_Collect(t *testing.T) {
 	}
 
 	if metrics == nil {
-		t.Errorf("Expected Collect to return non-nil metrics")
+		t.Fatalf("Expected Collect to return non-nil metrics")
 	}
 
 	if metrics.Errors == nil {
@@ -266,7 +266,7 @@ func TestGetMetrics(t *testing.T) {
 	}
 
 	if metrics == nil {
-		t.Errorf("Expected GetMetrics to return non-nil metrics")
+		t.Fatalf("Expected GetMetrics to return non-nil metrics")
 	}
 
 	// Should have timestamp
@@ -317,7 +317,7 @@ func TestGetMetrics_WithLaravelConfig(t *testing.T) {
 	}
 
 	if metrics == nil {
-		t.Errorf("Expected GetMetrics to return non-nil metrics")
+		t.Fatalf("Expected GetMetrics to return non-nil metrics")
 	}
 
 	// Should have Laravel data structure initialized
