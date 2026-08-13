@@ -1,16 +1,9 @@
 package phpfpm
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
 	"github.com/cboxdk/fpm-exporter/internal/config"
-	"github.com/elasticphphq/fcgx"
-	"io"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -143,52 +136,4 @@ func getPHPExtensions(ctx context.Context, bin string) ([]string, error) {
 		}
 	}
 	return exts, nil
-}
-
-func getPHPConfig(ctx context.Context, cfg config.FPMPoolConfig) (map[string]interface{}, error) {
-	scheme, address, _, err := ParseAddress(cfg.StatusSocket, cfg.StatusPath)
-	if err != nil {
-		return nil, fmt.Errorf("invalid FPM socket address: %w", err)
-	}
-
-	client, err := fcgx.DialContext(ctx, scheme, address)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial FastCGI: %w", err)
-	}
-	defer func() { _ = client.Close() }()
-
-	confScript := `<?php header("Content-Type: application/json"); echo json_encode(ini_get_all());`
-	tmpConfFile, err := os.CreateTemp("/tmp", "fpm-config-*.php")
-	defer func() { _ = os.Remove(tmpConfFile.Name()) }()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp PHP config script: %w", err)
-	}
-	if _, err := tmpConfFile.WriteString(confScript); err != nil {
-		_ = tmpConfFile.Close()
-		return nil, fmt.Errorf("failed to write config PHP script: %w", err)
-	}
-	_ = tmpConfFile.Close()
-
-	scriptPath := tmpConfFile.Name()
-	confEnv := map[string]string{
-		"SCRIPT_FILENAME": scriptPath,
-		"SCRIPT_NAME":     "/" + filepath.Base(scriptPath),
-		"SERVER_SOFTWARE": "fpm-exporter",
-		"REMOTE_ADDR":     "127.0.0.1",
-	}
-
-	resp, err := client.Get(ctx, confEnv)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, resp.Body); err != nil {
-		return nil, fmt.Errorf("failed to read FastCGI config response: %w", err)
-	}
-	var conf map[string]interface{}
-	if err := json.Unmarshal(buf.Bytes(), &conf); err != nil {
-		return nil, fmt.Errorf("FPM Config JSON parse failed: %w", err)
-	}
-	return conf, nil
 }

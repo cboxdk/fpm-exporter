@@ -1,3 +1,10 @@
+# Every target here is a task, not a file. Without this, `build` collides with
+# the build/ directory and `make build` becomes a no-op after the first run --
+# so every contributor after their first build silently tests a stale binary.
+.PHONY: build build-all build-glibc build-musl build-musl-quick \
+	test check fmt fmt-check vet lint vulncheck sbom sbom-check license-check \
+	test-coverage test-coverage-clean clean docker-build docker-shell docker-stop
+
 # Go parameters
 GOCMD=go
 GOBUILD=$(GOCMD) build
@@ -6,7 +13,10 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 BINARY_NAME=fpm-exporter
-VERSION?=1.0.0
+VERSION?=dev
+COMMIT?=$(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+DATE?=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS=-w -s -X 'main.version=$(VERSION)' -X 'main.commit=$(COMMIT)' -X 'main.date=$(DATE)' 
 BUILD_DIR=build
 DOCKER_REPO=cboxdk
 IMAGE_NAME=php:8.4-fpm-bookworm
@@ -16,15 +26,15 @@ CONTAINER_NAME=cbox-dev
 build-all:
 	mkdir -p $(BUILD_DIR)
 	@echo "Building static binaries for all platforms..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/fpm-exporter-linux-amd64 -v .
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/fpm-exporter-linux-arm64 -v .
-	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/fpm-exporter-darwin-amd64 -v .
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/fpm-exporter-darwin-arm64 -v .
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/fpm-exporter-linux-amd64 .
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/fpm-exporter-linux-arm64 .
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/fpm-exporter-darwin-amd64 .
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/fpm-exporter-darwin-arm64 .
 
 # Quick local build (current platform)
 build:
 	mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=0 $(GOBUILD) -ldflags '-w -s' -o $(BUILD_DIR)/$(BINARY_NAME) -v .
+	CGO_ENABLED=0 $(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) .
 
 # Legacy aliases for backwards compatibility
 build-glibc: build-all
@@ -80,18 +90,10 @@ test-coverage:
 test-coverage-clean:
 	rm -f coverage.out coverage.html
 
-build-docker:
+docker-build:
 	docker build -t $(IMAGE_NAME) .
 
-build-pbf:
-	clang -O2 -g -target bpf -c ./bpf/monitor.c \
-		-D__TARGET_ARCH_arm64 \
-		-o ./internal/ebpf/monitor.o \
-		-I/usr/include -I/usr/src/linux-headers-$(uname -r)/include \
-		-I/usr/src/linux-headers-$(shell uname -r)/include \
-		-D __BPF_TRACING__
-
-run:
+docker-shell:
 	docker run -it --rm \
 		--name $(CONTAINER_NAME) \
 		-v $(CURDIR):/app \
@@ -101,8 +103,8 @@ run:
 shell:
 	docker exec -it $(CONTAINER_NAME) bash
 
-stop:
+docker-stop:
 	docker stop $(CONTAINER_NAME) || true
 
 clean:
-	docker rmi $(IMAGE_NAME) || true
+	rm -rf $(BUILD_DIR) dist coverage.out coverage.html
