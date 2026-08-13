@@ -3,6 +3,7 @@ package phpfpm
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -93,11 +94,7 @@ fi
 	}
 
 	// Clear cache to ensure fresh call
-	phpInfoMu.Lock()
-	cachedPHPInfo = nil
-	phpInfoErr = nil
-	lastPHPInfoTime = time.Time{}
-	phpInfoMu.Unlock()
+	resetPHPInfoCache()
 
 	// Create test config
 	cfg := config.FPMPoolConfig{
@@ -153,11 +150,7 @@ fi
 	}
 
 	// Clear cache
-	phpInfoMu.Lock()
-	cachedPHPInfo = nil
-	phpInfoErr = nil
-	lastPHPInfoTime = time.Time{}
-	phpInfoMu.Unlock()
+	resetPHPInfoCache()
 
 	cfg := config.FPMPoolConfig{
 		Binary: mockPhpPath,
@@ -182,18 +175,19 @@ fi
 		t.Errorf("Expected cached result to be the same instance")
 	}
 
-	// Verify cache is working by checking time
+	// The entry is cached per binary.
 	phpInfoMu.Lock()
-	cacheTime := lastPHPInfoTime
+	entry, cached := phpInfoCache[cfg.Binary]
 	phpInfoMu.Unlock()
 
-	if cacheTime.IsZero() {
-		t.Errorf("Expected cache time to be set")
+	if !cached || entry.expiresAt.IsZero() {
+		t.Errorf("Expected an entry cached for %s", cfg.Binary)
 	}
 
-	// Test cache expiry by setting old time
+	// Expire it.
 	phpInfoMu.Lock()
-	lastPHPInfoTime = time.Now().Add(-2 * time.Hour)
+	entry.expiresAt = time.Now().Add(-time.Minute)
+	phpInfoCache[cfg.Binary] = entry
 	phpInfoMu.Unlock()
 
 	// Third call (should refresh cache)
@@ -266,7 +260,7 @@ EOF`
 				t.Fatalf("Failed to create mock PHP binary: %v", err)
 			}
 
-			result, err := getPHPVersion(mockPhpPath)
+			result, err := getPHPVersion(context.Background(), mockPhpPath)
 
 			if tt.expectError {
 				if err == nil {
@@ -361,7 +355,7 @@ EOF`
 				t.Fatalf("Failed to create mock PHP binary: %v", err)
 			}
 
-			result, err := getPHPExtensions(mockPhpPath)
+			result, err := getPHPExtensions(context.Background(), mockPhpPath)
 
 			if tt.expectError {
 				if err == nil {
@@ -391,11 +385,7 @@ func TestGetPHPStats_ErrorHandling(t *testing.T) {
 	logging.Init(config.LoggingBlock{Level: "error", Format: "text"})
 
 	// Clear cache
-	phpInfoMu.Lock()
-	cachedPHPInfo = nil
-	phpInfoErr = nil
-	lastPHPInfoTime = time.Time{}
-	phpInfoMu.Unlock()
+	resetPHPInfoCache()
 
 	// Test with non-existent binary
 	cfg := config.FPMPoolConfig{
@@ -408,13 +398,17 @@ func TestGetPHPStats_ErrorHandling(t *testing.T) {
 		t.Errorf("Expected error for non-existent binary")
 	}
 
-	// Test that error is cached
+	// The failure is cached, with its own timestamp: without one, a binary
+	// that errors re-forked php -v for every pool on every scrape forever.
 	phpInfoMu.Lock()
-	cachedErr := phpInfoErr
+	entry, cached := phpInfoCache[cfg.Binary]
 	phpInfoMu.Unlock()
 
-	if cachedErr == nil {
-		t.Errorf("Expected error to be cached")
+	if !cached || entry.err == nil {
+		t.Errorf("Expected the failure to be cached")
+	}
+	if entry.expiresAt.IsZero() {
+		t.Errorf("Expected the failure entry to expire, not be retried every scrape")
 	}
 
 	// Second call should return cached error
@@ -423,10 +417,6 @@ func TestGetPHPStats_ErrorHandling(t *testing.T) {
 		t.Errorf("Expected cached error on second call")
 	}
 
-	// Both errors should be non-nil (we can't guarantee they're the same instance due to error wrapping)
-	if err2 == nil || cachedErr == nil {
-		t.Errorf("Expected both errors to be non-nil")
-	}
 }
 
 func TestGetPHPConfig_Structure(t *testing.T) {
@@ -481,11 +471,7 @@ sleep 0.1
 	}
 
 	// Clear cache
-	phpInfoMu.Lock()
-	cachedPHPInfo = nil
-	phpInfoErr = nil
-	lastPHPInfoTime = time.Time{}
-	phpInfoMu.Unlock()
+	resetPHPInfoCache()
 
 	cfg := config.FPMPoolConfig{
 		Binary: mockPhpPath,
@@ -526,5 +512,46 @@ sleep 0.1
 		if infos[i] != infos[0] {
 			t.Errorf("Expected all concurrent calls to return the same cached instance")
 		}
+	}
+}
+
+// A host running php8.1-fpm and php8.3-fpm side by side is exactly what
+// findMatchingCliBinary exists to support. A single unkeyed cache meant
+// whichever pool was scraped first decided the version every other pool
+// reported for the next hour.
+func TestGetPHPStats_CacheIsKeyedByBinary(t *testing.T) {
+	logging.Init(config.LoggingBlock{Level: "error", Format: "text"})
+	resetPHPInfoCache()
+	t.Cleanup(resetPHPInfoCache)
+
+	dir := t.TempDir()
+	write := func(name, version string) string {
+		path := filepath.Join(dir, name)
+		script := "#!/bin/sh\ncase \"$1\" in\n-v) echo \"PHP " + version + " (cli)\" ;;\n-m) echo core ;;\nesac\n"
+		if err := os.WriteFile(path, []byte(script), 0755); err != nil {
+			t.Fatalf("Failed to write fake php: %v", err)
+		}
+		return path
+	}
+
+	old := write("php81", "8.1.30")
+	recent := write("php83", "8.3.14")
+
+	ctx := context.Background()
+
+	first, err := GetPHPStats(ctx, config.FPMPoolConfig{Binary: old})
+	if err != nil {
+		t.Fatalf("GetPHPStats(old) failed: %v", err)
+	}
+	second, err := GetPHPStats(ctx, config.FPMPoolConfig{Binary: recent})
+	if err != nil {
+		t.Fatalf("GetPHPStats(recent) failed: %v", err)
+	}
+
+	if !strings.Contains(first.Version, "8.1.30") {
+		t.Errorf("Expected the 8.1 binary's version, got %q", first.Version)
+	}
+	if !strings.Contains(second.Version, "8.3.14") {
+		t.Errorf("Expected the 8.3 binary's version, got %q", second.Version)
 	}
 }

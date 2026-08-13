@@ -15,17 +15,26 @@ Cbox FPM Exporter is distributed as a single static binary with no runtime depen
 curl -fsSL https://raw.githubusercontent.com/cboxdk/fpm-exporter/main/install.sh | sh
 
 # Specific version
-curl -fsSL https://raw.githubusercontent.com/cboxdk/fpm-exporter/main/install.sh | VERSION=v1.0.0 sh
+curl -fsSL https://raw.githubusercontent.com/cboxdk/fpm-exporter/main/install.sh | VERSION=v3.1.0 sh
 
 # Custom install directory
 curl -fsSL https://raw.githubusercontent.com/cboxdk/fpm-exporter/main/install.sh | INSTALL_DIR=/opt/bin sh
 ```
 
-This auto-detects your OS and architecture and installs to `/usr/local/bin`.
+This auto-detects your OS and architecture and installs to `/usr/local/bin`. The
+downloaded binary is verified against the release's `checksums.txt`, and the
+install aborts on a mismatch. Releases before v3.2.0 do not publish checksums,
+so the script warns and continues for those.
 
 ## Pre-built Binaries
 
-Download the latest release from [GitHub Releases](https://github.com/cboxdk/fpm-exporter/releases):
+Download the latest release from [GitHub Releases](https://github.com/cboxdk/fpm-exporter/releases).
+To verify a download yourself:
+
+```bash
+wget https://github.com/cboxdk/fpm-exporter/releases/latest/download/checksums.txt
+sha256sum --check --ignore-missing checksums.txt
+```
 
 ```bash
 # Linux (amd64) - Works on ALL distributions including Alpine

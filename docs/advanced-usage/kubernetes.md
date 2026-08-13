@@ -54,7 +54,9 @@ spec:
           args:
             - serve
             - --laravel
-            - "name=App,path=/var/www/html"
+            - "App:/var/www/html"
+            - --laravel-site
+            - "appinfo=true"
           ports:
             - containerPort: 9114
               name: metrics
@@ -100,7 +102,6 @@ data:
       listen_addr: ":9114"
     phpfpm:
       autodiscover: true
-      poll_interval: 5s
     laravel:
       - name: App
         path: /var/www/html
@@ -192,17 +193,23 @@ containers:
   - name: fpm-exporter
     livenessProbe:
       httpGet:
-        path: /metrics
+        path: /healthz
         port: 9114
       initialDelaySeconds: 10
       periodSeconds: 30
     readinessProbe:
       httpGet:
-        path: /metrics
+        path: /healthz
         port: 9114
       initialDelaySeconds: 5
       periodSeconds: 10
 ```
+
+Point probes at `/healthz`, never at `/metrics`. `/healthz` answers without
+collecting anything; a probe against `/metrics` forks `php artisan` for every
+configured Laravel site on every probe, and with kubelet's 1 second default
+`timeoutSeconds` an unreachable Redis in the application turns into a
+CrashLoopBackOff for the exporter.
 
 ## Resource Recommendations
 

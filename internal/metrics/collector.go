@@ -2,107 +2,13 @@ package metrics
 
 import (
 	"context"
-	"github.com/cboxdk/fpm-exporter/internal/laravel"
-	"github.com/cboxdk/fpm-exporter/internal/server"
-	"sync"
 	"time"
 
 	"github.com/cboxdk/fpm-exporter/internal/config"
+	"github.com/cboxdk/fpm-exporter/internal/laravel"
 	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
+	"github.com/cboxdk/fpm-exporter/internal/server"
 )
-
-type Listener func(*Metrics)
-
-type Collector struct {
-	cfg       *config.Config
-	interval  time.Duration
-	listeners []Listener
-	mu        sync.Mutex
-	results   map[string]*phpfpm.Result
-}
-
-func NewCollector(cfg *config.Config, interval time.Duration) *Collector {
-	return &Collector{
-		cfg:       cfg,
-		interval:  interval,
-		listeners: make([]Listener, 0),
-		results:   make(map[string]*phpfpm.Result),
-	}
-}
-
-func (c *Collector) AddListener(fn Listener) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.listeners = append(c.listeners, fn)
-}
-
-func (c *Collector) notify(m *Metrics) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, fn := range c.listeners {
-		fn(m)
-	}
-}
-
-func (c *Collector) Run(ctx context.Context) {
-	ticker := time.NewTicker(c.interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			m, _ := GetMetrics(ctx, c.cfg)
-			c.notify(m)
-		}
-	}
-}
-
-func (c *Collector) Collect(ctx context.Context) (*Metrics, error) {
-	return GetMetrics(ctx, c.cfg)
-}
-
-func (c *Collector) RunPerPoolCollector(ctx context.Context) {
-	for _, pool := range c.cfg.PHPFpm.Pools {
-		go func(poolCfg config.FPMPoolConfig) {
-			interval := poolCfg.PollInterval
-			if interval == 0 {
-				interval = c.cfg.PHPFpm.PollInterval
-			}
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					timeout := poolCfg.Timeout
-					if timeout == 0 {
-						timeout = 2 * time.Second
-					}
-
-					poolCtx, cancel := context.WithTimeout(ctx, timeout)
-					result, err := phpfpm.GetMetricsForPool(poolCtx, poolCfg)
-					cancel()
-
-					c.mu.Lock()
-					if err == nil {
-						c.results[poolCfg.Socket] = result
-					} else {
-						c.results[poolCfg.Socket] = &phpfpm.Result{
-							Timestamp: time.Now(),
-							Pools:     nil,
-							Global:    nil,
-						}
-					}
-					c.mu.Unlock()
-				}
-			}
-		}(pool)
-	}
-}
 
 func GetMetrics(ctx context.Context, cfg *config.Config) (*Metrics, error) {
 	out := &Metrics{
@@ -117,11 +23,23 @@ func GetMetrics(ctx context.Context, cfg *config.Config) (*Metrics, error) {
 	}
 
 	if cfg.PHPFpm.Enabled {
-		fpmResults, err := phpfpm.GetMetrics(ctx, cfg)
+		outcomes, err := phpfpm.GetMetrics(ctx, cfg)
+		out.FpmPools = outcomes
+
+		// Successful pools keep the published /json shape; failures are
+		// reported per pool so the collector can emit up=0 for each one.
+		out.Fpm = make(map[string]*phpfpm.Result, len(outcomes))
+		for _, outcome := range outcomes {
+			if outcome.Err != nil {
+				out.Errors["fpm:"+outcome.Name] = outcome.Err.Error()
+				continue
+			}
+			out.Fpm[outcome.Socket] = outcome.Result
+		}
+
 		if err != nil {
 			out.Errors["fpm"] = err.Error()
-		} else {
-			out.Fpm = fpmResults
+			return out, err
 		}
 	}
 

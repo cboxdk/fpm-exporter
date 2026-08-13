@@ -35,6 +35,12 @@ type Stats struct {
 	HitRate          float64 `json:"opcache_hit_rate"`
 }
 
+// opcacheScriptPrefix names the generated status script. The process-accounting
+// filter matches on it to exclude the exporter's own probes, so the two must be
+// derived from one constant -- they drifted apart once already, and the filter
+// silently matched nothing.
+const opcacheScriptPrefix = "fpm-exporter-opcache-"
+
 const opcacheScriptContent = `<?php
 error_reporting(0);
 ini_set('display_errors', 0);
@@ -57,7 +63,7 @@ var (
 // the contents are fixed and non-secret.
 func opcacheScript() (string, error) {
 	opcacheScriptOnce.Do(func() {
-		f, err := os.CreateTemp("", "fpm-exporter-opcache-*.php")
+		f, err := os.CreateTemp("", opcacheScriptPrefix+"*.php")
 		if err != nil {
 			opcacheScriptErr = fmt.Errorf("failed to create PHP script: %w", err)
 			return

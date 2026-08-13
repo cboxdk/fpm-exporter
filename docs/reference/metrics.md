@@ -8,6 +8,46 @@ weight: 1
 
 Cbox FPM Exporter provides metrics in three categories: PHP-FPM, Laravel, and System.
 
+## Exporter Health
+
+The exporter exposes the standard Go and process collectors — `go_goroutines`,
+`process_resident_memory_bytes` and friends — plus:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `fpm_exporter_build_info` | gauge | Always 1; carries `version` and `goversion` labels |
+| `promhttp_metric_handler_requests_total` | counter | Scrapes served, by status code |
+
+`/healthz` answers without collecting anything and is the right target for a
+liveness probe. `/` links to both.
+
+## Scrape Health
+
+Emitted once per scrape, without labels.
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `phpfpm_scrape_success` | gauge | Whether the last scrape collected metrics (1=yes, 0=no) |
+| `phpfpm_scrape_failures` | counter | Total failed scrapes since the exporter started |
+| `phpfpm_pools_configured` | gauge | Number of pools the exporter is configured to scrape |
+
+`phpfpm_scrape_success` distinguishes a failed scrape from a successful one that
+found no pools. A pool that cannot be reached reports `phpfpm_up 0` under its own
+`pool` and `socket` labels rather than disappearing from the output, so
+`phpfpm_up == 0` is a usable alert:
+
+```promql
+# A specific pool is down
+phpfpm_up == 0
+
+# The exporter is configured but discovered nothing
+phpfpm_pools_configured == 0
+```
+
+Give a pool an explicit `name` in the configuration if you want its label to stay
+stable while it is down — without one, a reachable pool is labelled with the name
+PHP-FPM reports and an unreachable one with its socket.
+
 ## PHP-FPM Metrics
 
 ### Pool Status
@@ -39,7 +79,6 @@ Labels: `pool`, `socket`
 | `phpfpm_process_request_duration` | gauge | Duration of last request (microseconds) |
 | `phpfpm_process_last_request_cpu` | gauge | CPU % of last request |
 | `phpfpm_process_last_request_memory` | gauge | Memory of last request (bytes) |
-| `phpfpm_process_current_rss` | gauge | Process RSS memory (bytes) |
 
 Labels: `pool`, `socket`, `pid`, `state` (for state metric)
 
@@ -91,7 +130,7 @@ Labels: `pool`, `socket`
 | `laravel_debug_mode` | gauge | Debug mode enabled (1=yes) |
 | `laravel_maintenance_mode` | gauge | Maintenance mode (1=yes) |
 
-Labels for `laravel_app_info`: `site`, `version`, `env`, `php_version`, `debug_mode`
+Labels for `laravel_app_info`: `site`, `version`, `php_version`, `environment`, `debug_mode`
 
 ### Cache Status
 
@@ -133,6 +172,11 @@ Labels for `system_info`: `os`, `arch`, `type` (kubernetes, docker, vm, physical
 ## Example Queries
 
 ### PHP-FPM Health
+
+```promql
+# The exporter itself is failing
+rate(phpfpm_scrape_failures[5m]) > 0
+```
 
 ```promql
 # Pool utilization (active / max_children)

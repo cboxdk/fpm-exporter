@@ -13,7 +13,7 @@ Visualize Cbox FPM Exporter metrics with Grafana dashboards.
 Import the included dashboard:
 
 1. Open Grafana → Dashboards → Import
-2. Upload `testing/grafana/provisioning/dashboards/fpm-exporter-dashboard.json`
+2. Upload `testing/grafana/provisioning/dashboards/phpeek-dashboard.json`
 3. Select your Prometheus data source
 4. Click Import
 

@@ -54,3 +54,32 @@ jobs:
           files: dist/fpm-exporter-${{ matrix.goos }}-${{ matrix.goarch }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  checksums:
+    name: Publish checksums
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # install.sh verifies the binary it downloads against this file, so it has
+      # to cover every asset -- hence a job that runs after the whole matrix.
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+          gh release download "${GITHUB_REF#refs/tags/}" \
+            --repo "$GITHUB_REPOSITORY" --dir dist --pattern 'fpm-exporter-*'
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum fpm-exporter-* > checksums.txt
+          cat checksums.txt
+
+      - name: Upload checksums
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

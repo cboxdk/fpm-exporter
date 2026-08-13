@@ -84,7 +84,6 @@ avg(phpfpm_process_request_duration) by (pool)
 rate(phpfpm_slow_requests[5m])
 
 # Memory per process
-avg(phpfpm_process_current_rss) by (pool)
 ```
 
 ## Process Manager Modes

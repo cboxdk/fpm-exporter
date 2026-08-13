@@ -295,18 +295,16 @@ EOF`
 		t.Fatalf("ParseFPMConfig failed: %v", err)
 	}
 
-	// Test that NOTICE prefixes are stripped (may have leading quote if parsing is incomplete)
-	if config.Global["pid"] != "/var/run/php-fpm.pid" && config.Global["pid"] != "\"/var/run/php-fpm.pid" {
-		t.Errorf("Expected pid to be '/var/run/php-fpm.pid' or with leading quote, got '%s'", config.Global["pid"])
+	if config.Global["pid"] != "/var/run/php-fpm.pid" {
+		t.Errorf("Expected pid to be '/var/run/php-fpm.pid', got '%s'", config.Global["pid"])
 	}
 
-	// Test that quotes are stripped (may have leading quote if parsing is incomplete)
-	if config.Global["error_log"] != "/var/log/php-fpm.log" && config.Global["error_log"] != "\"/var/log/php-fpm.log" {
-		t.Errorf("Expected error_log to be '/var/log/php-fpm.log' or with leading quote, got '%s'", config.Global["error_log"])
+	if config.Global["error_log"] != "/var/log/php-fpm.log" {
+		t.Errorf("Expected error_log to be '/var/log/php-fpm.log', got '%s'", config.Global["error_log"])
 	}
 
-	if config.Global["daemonize"] != "yes" && config.Global["daemonize"] != "\"yes" {
-		t.Errorf("Expected daemonize to be 'yes' or with leading quote, got '%s'", config.Global["daemonize"])
+	if config.Global["daemonize"] != "yes" {
+		t.Errorf("Expected daemonize to be 'yes', got '%s'", config.Global["daemonize"])
 	}
 
 	// Test pool parsing
@@ -315,8 +313,8 @@ EOF`
 		t.Fatalf("Expected 'www' pool to exist")
 	}
 
-	if wwwPool["user"] != "www-data" && wwwPool["user"] != "\"www-data" {
-		t.Errorf("Expected user to be 'www-data' or with leading quote, got '%s'", wwwPool["user"])
+	if wwwPool["user"] != "www-data" {
+		t.Errorf("Expected user to be 'www-data', got '%s'", wwwPool["user"])
 	}
 
 	// Test that undefined values become empty strings
@@ -324,8 +322,8 @@ EOF`
 		t.Errorf("Expected undefined_value to be empty string, got '%s'", wwwPool["undefined_value"])
 	}
 
-	if wwwPool["pm.status_path"] != "/status" && wwwPool["pm.status_path"] != "\"/status" {
-		t.Errorf("Expected pm.status_path to be '/status' or with leading quote, got '%s'", wwwPool["pm.status_path"])
+	if wwwPool["pm.status_path"] != "/status" {
+		t.Errorf("Expected pm.status_path to be '/status', got '%s'", wwwPool["pm.status_path"])
 	}
 }
 
@@ -425,5 +423,41 @@ sleep 0.1
 		if len(config.Global) == 0 && len(config.Pools) == 0 {
 			t.Errorf("Expected config %d to have some content", i)
 		}
+	}
+}
+
+// `php-fpm -tt` dumps the effective configuration, which routinely carries
+// secrets. The whole map used to be attached to the pool and serialised on the
+// unauthenticated /json endpoint.
+func TestExportableConfigDropsEverythingNotPublished(t *testing.T) {
+	values := map[string]string{
+		"pm.max_children":            "50",
+		"request_terminate_timeout":  "120s",
+		"rlimit_files":               "1024",
+		"env[DB_PASSWORD]":           "sup3rs3cret",
+		"env[APP_KEY]":               "base64:secret",
+		"php_admin_value[error_log]": "/var/log/app.log",
+		"listen.acl_users":           "www-data",
+		"user":                       "www-data",
+		"chdir":                      "/var/www",
+		"access.log":                 "/var/log/access.log",
+	}
+
+	exported := exportableConfig(values)
+
+	for _, key := range []string{"pm.max_children", "request_terminate_timeout", "rlimit_files"} {
+		if _, ok := exported[key]; !ok {
+			t.Errorf("Expected %s to be exported: it is emitted as a metric", key)
+		}
+	}
+
+	for key, value := range exported {
+		if !exportedConfigKeys[key] {
+			t.Errorf("Exported an unpublished setting: %s = %s", key, value)
+		}
+	}
+
+	if len(exported) != 3 {
+		t.Errorf("Expected exactly the 3 published keys, got %d: %v", len(exported), exported)
 	}
 }

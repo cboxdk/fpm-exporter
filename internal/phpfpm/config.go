@@ -2,6 +2,7 @@ package phpfpm
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -18,6 +19,8 @@ type FPMConfig struct {
 	Pools  map[string]map[string]string
 }
 
+// ParseFPMConfig runs `php-fpm -tt` and parses its report of the effective
+// configuration. Results are cached per binary+config pair.
 func ParseFPMConfig(FPMBinaryPath string, FPMConfigPath string) (*FPMConfig, error) {
 	key := FPMBinaryPath + "::" + FPMConfigPath
 
@@ -35,13 +38,30 @@ func ParseFPMConfig(FPMBinaryPath string, FPMConfigPath string) (*FPMConfig, err
 		return nil, fmt.Errorf("failed to run php-fpm -tt: %w\nOutput: %s", err, output)
 	}
 
+	fpmconfig, err := parseFPMConfigOutput(output)
+	if err != nil {
+		return nil, err
+	}
+
+	fpmConfigCacheLock.Lock()
+	fpmConfigCache[key] = fpmconfig
+	fpmConfigCacheLock.Unlock()
+
+	return fpmconfig, nil
+}
+
+// parseFPMConfigOutput parses the report `php-fpm -tt` writes to stderr. Kept
+// free of I/O so it can be driven by a captured fixture: this is the only place
+// that knows the shape of that output, and it had no test against real output
+// at all.
+func parseFPMConfigOutput(output []byte) (*FPMConfig, error) {
 	fpmconfig := &FPMConfig{
 		Global: make(map[string]string),
 		Pools:  make(map[string]map[string]string),
 	}
 	currentSection := "global"
 
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
@@ -72,8 +92,12 @@ func ParseFPMConfig(FPMBinaryPath string, FPMConfigPath string) (*FPMConfig, err
 
 		if strings.Contains(line, "=") {
 			parts := strings.SplitN(line, "=", 2)
-			key := strings.TrimSpace(strings.Trim(parts[0], `"`))
-			val := strings.TrimSpace(strings.Trim(parts[1], `"`))
+			// TrimSpace first: the space after `=` used to block the leading
+			// quote from being stripped, leaving values like `"50`. php-fpm -tt
+			// normalises quotes away so nothing hit it in practice, but the
+			// ordering was still wrong -- and the test accepted either result.
+			key := strings.Trim(strings.TrimSpace(parts[0]), `"`)
+			val := strings.Trim(strings.TrimSpace(parts[1]), `"`)
 			if val == "undefined" {
 				val = ""
 			}
@@ -92,10 +116,6 @@ func ParseFPMConfig(FPMBinaryPath string, FPMConfigPath string) (*FPMConfig, err
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("failed to scan php-fpm config output: %w", err)
 	}
-
-	fpmConfigCacheLock.Lock()
-	fpmConfigCache[key] = fpmconfig
-	fpmConfigCacheLock.Unlock()
 
 	return fpmconfig, nil
 }

@@ -2,6 +2,11 @@ package laravel
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/cboxdk/fpm-exporter/internal/config"
@@ -191,5 +196,107 @@ func TestCollect_PHPBinarySelection(t *testing.T) {
 
 	if len(errors) != 2 {
 		t.Errorf("Expected 2 errors, got %d", len(errors))
+	}
+}
+
+// Each site boots its own PHP process, so collecting them in sequence made a
+// scrape cost the sum of every site's boot time.
+//
+// This asserts overlap rather than elapsed time: a wall-clock budget is a
+// coin flip on a loaded machine, and this test previously failed under
+// `go test ./...` for that reason.
+func TestCollect_RunsSitesConcurrently(t *testing.T) {
+	if runtime.NumCPU() < 2 {
+		t.Skip("collection is bounded by NumCPU; overlap is impossible on 1 CPU")
+	}
+
+	const sites = 4
+
+	dir := t.TempDir()
+	inflight := filepath.Join(dir, "inflight")
+	if err := os.MkdirAll(inflight, 0755); err != nil {
+		t.Fatalf("Failed to create inflight dir: %v", err)
+	}
+
+	// Each invocation registers itself, samples how many peers are registered
+	// at that moment, then deregisters.
+	fakePHP := filepath.Join(dir, "fake-php")
+	script := "#!/bin/sh\n" +
+		"me=\"" + inflight + "/$$\"\n" +
+		"touch \"$me\"\n" +
+		"sleep 0.3\n" +
+		"ls \"" + inflight + "\" | wc -l >> \"" + dir + "/observed\"\n" +
+		"rm -f \"$me\"\n" +
+		"echo '{}'\n"
+	if err := os.WriteFile(fakePHP, []byte(script), 0755); err != nil {
+		t.Fatalf("Failed to write fake php: %v", err)
+	}
+
+	cfg := &config.Config{PHP: config.PHPConfig{Binary: fakePHP}}
+	for i := range sites {
+		cfg.Laravel = append(cfg.Laravel, config.LaravelConfig{
+			Name:   "site-" + strconv.Itoa(i),
+			Path:   dir,
+			Queues: map[string][]string{"redis": {"default"}},
+		})
+	}
+
+	result, errs := Collect(context.Background(), cfg)
+
+	if len(errs) != 0 {
+		t.Fatalf("Unexpected errors: %v", errs)
+	}
+	if len(result) != sites {
+		t.Errorf("Expected %d sites, got %d", sites, len(result))
+	}
+
+	observed, err := os.ReadFile(filepath.Join(dir, "observed"))
+	if err != nil {
+		t.Fatalf("Failed to read observations: %v", err)
+	}
+
+	peak := 0
+	for _, line := range strings.Fields(string(observed)) {
+		n, convErr := strconv.Atoi(line)
+		if convErr != nil {
+			t.Fatalf("Unexpected observation %q: %v", line, convErr)
+		}
+		peak = max(peak, n)
+	}
+
+	if peak < 2 {
+		t.Errorf("Expected at least two sites in flight at once, peak was %d", peak)
+	}
+}
+
+// One failing site must not cost the others their metrics.
+func TestCollect_IsolatesSiteFailures(t *testing.T) {
+	dir := t.TempDir()
+	fakePHP := filepath.Join(dir, "fake-php")
+	if err := os.WriteFile(fakePHP, []byte("#!/bin/sh\necho '{}'\n"), 0755); err != nil {
+		t.Fatalf("Failed to write fake php: %v", err)
+	}
+
+	cfg := &config.Config{
+		PHP: config.PHPConfig{Binary: fakePHP},
+		Laravel: []config.LaravelConfig{
+			{Name: "healthy", Path: dir, Queues: map[string][]string{"redis": {"default"}}},
+			{Name: "broken", Path: dir, Queues: map[string][]string{"redis": {"default"}},
+				PHPConfig: &config.PHPConfig{Binary: filepath.Join(dir, "does-not-exist")}},
+		},
+	}
+
+	result, errs := Collect(context.Background(), cfg)
+
+	if _, ok := result["healthy"]; !ok {
+		t.Errorf("Expected the healthy site to still report, got %v", result)
+	}
+
+	if _, ok := result["broken"]; ok {
+		t.Errorf("Expected no metrics for the broken site")
+	}
+
+	if _, ok := errs["laravel:broken"]; !ok {
+		t.Errorf("Expected an error keyed to the broken site, got %v", errs)
 	}
 }

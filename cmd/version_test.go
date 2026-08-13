@@ -155,7 +155,7 @@ func TestVersionCommand_Integration(t *testing.T) {
 	// Test some specific inherited flags
 	expectedFlags := []string{"config", "debug", "log-level", "autodiscover"}
 	for _, flag := range expectedFlags {
-		if foundVersion.Flags().Lookup(flag) == nil {
+		if foundVersion.InheritedFlags().Lookup(flag) == nil {
 			t.Errorf("Expected version command to inherit flag '%s'", flag)
 		}
 	}
