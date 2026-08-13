@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,11 +25,9 @@ func TestConfig_StructDefaults(t *testing.T) {
 		Autodiscover: true,
 		Retries:      5,
 		RetryDelay:   2,
-		PollInterval: time.Second,
 		Pools:        []FPMPoolConfig{},
 	}
 	config.PHP = PHPConfig{
-		Enabled: true,
 		Binary:  "php",
 		IniPath: "/etc/php.ini",
 	}
@@ -47,9 +46,6 @@ func TestConfig_StructDefaults(t *testing.T) {
 		t.Errorf("Expected Logging.Level to be string")
 	}
 
-	if config.PHPFpm.PollInterval != time.Second {
-		t.Errorf("Expected PHPFpm.PollInterval to be time.Duration")
-	}
 }
 
 func TestFPMPoolConfig_Structure(t *testing.T) {
@@ -62,17 +58,12 @@ func TestFPMPoolConfig_Structure(t *testing.T) {
 		ConfigPath:        "/etc/php-fpm.conf",
 		Binary:            "/usr/sbin/php-fpm",
 		CliBinary:         "/usr/bin/php",
-		PollInterval:      30 * time.Second,
 		Timeout:           5 * time.Second,
 	}
 
 	// Verify all fields are accessible
 	if poolConfig.Socket != "unix:///var/run/php-fpm.sock" {
 		t.Errorf("Expected Socket to be set correctly")
-	}
-
-	if poolConfig.PollInterval != 30*time.Second {
-		t.Errorf("Expected PollInterval to be time.Duration")
 	}
 
 	if poolConfig.Timeout != 5*time.Second {
@@ -87,7 +78,6 @@ func TestLaravelConfig_Structure(t *testing.T) {
 		Path:          "/var/www/app",
 		EnableAppInfo: true,
 		PHPConfig: &PHPConfig{
-			Enabled: true,
 			Binary:  "php8.2",
 			IniPath: "/etc/php/8.2/php.ini",
 		},
@@ -175,14 +165,6 @@ func TestLoad_Defaults(t *testing.T) {
 
 	if config.PHPFpm.RetryDelay != 2 {
 		t.Errorf("Expected phpfpm.retry_delay default to be 2, got %v", config.PHPFpm.RetryDelay)
-	}
-
-	if config.PHPFpm.PollInterval != time.Second {
-		t.Errorf("Expected phpfpm.poll_interval default to be 1s, got %v", config.PHPFpm.PollInterval)
-	}
-
-	if config.PHP.Enabled != true {
-		t.Errorf("Expected php.enabled default to be true, got %v", config.PHP.Enabled)
 	}
 
 	if config.PHP.Binary != "php" {
@@ -341,10 +323,6 @@ func TestLoad_WithComplexStructures(t *testing.T) {
 		t.Errorf("Expected pool1 socket to be 'unix:///var/run/php1.sock', got %v", pool1.Socket)
 	}
 
-	if pool1.PollInterval != 30*time.Second {
-		t.Errorf("Expected pool1 poll_interval to be 30s, got %v", pool1.PollInterval)
-	}
-
 	if pool1.Timeout != 5*time.Second {
 		t.Errorf("Expected pool1 timeout to be 5s, got %v", pool1.Timeout)
 	}
@@ -481,14 +459,6 @@ func TestMapstructureTags(t *testing.T) {
 		t.Errorf("Expected phpfpm.retry_delay to be 5, got %v", config.PHPFpm.RetryDelay)
 	}
 
-	if config.PHPFpm.PollInterval != 2*time.Second {
-		t.Errorf("Expected phpfpm.poll_interval to be 2s, got %v", config.PHPFpm.PollInterval)
-	}
-
-	if config.PHP.Enabled {
-		t.Errorf("Expected php.enabled to be false")
-	}
-
 	if config.PHP.Binary != "php8.0" {
 		t.Errorf("Expected php.binary to be 'php8.0', got %v", config.PHP.Binary)
 	}
@@ -503,5 +473,93 @@ func TestMapstructureTags(t *testing.T) {
 
 	if config.Monitor.EnableJson {
 		t.Errorf("Expected monitor.enable_json to be false")
+	}
+}
+
+// Every CBOX_* variable in docs/configuration/reference.md must actually change
+// the effective config. AutomaticEnv without a key replacer looked nested keys
+// up as CBOX_MONITOR.LISTEN_ADDR — not a settable name — so 13 of the 15
+// documented variables silently did nothing, including the two SECURITY.md
+// recommends as mitigations.
+func TestLoad_DocumentedEnvVarsApply(t *testing.T) {
+	tests := []struct {
+		env    string
+		value  string
+		assert func(*Config) bool
+	}{
+		{"CBOX_DEBUG", "true", func(c *Config) bool { return c.Debug }},
+		{"CBOX_LOGGING_LEVEL", "warn", func(c *Config) bool { return c.Logging.Level == "warn" }},
+		{"CBOX_LOGGING_FORMAT", "text", func(c *Config) bool { return c.Logging.Format == "text" }},
+		{"CBOX_LOGGING_COLOR", "false", func(c *Config) bool { return !c.Logging.Color }},
+		{"CBOX_MONITOR_LISTEN_ADDR", "127.0.0.1:9999", func(c *Config) bool { return c.Monitor.ListenAddr == "127.0.0.1:9999" }},
+		{"CBOX_MONITOR_ENABLE_JSON", "false", func(c *Config) bool { return !c.Monitor.EnableJson }},
+		{"CBOX_MONITOR_SCRAPE_TIMEOUT", "42s", func(c *Config) bool { return c.Monitor.ScrapeTimeout == 42*time.Second }},
+		{"CBOX_PHP_BINARY", "/usr/bin/php8.4", func(c *Config) bool { return c.PHP.Binary == "/usr/bin/php8.4" }},
+		{"CBOX_PHPFPM_ENABLED", "false", func(c *Config) bool { return !c.PHPFpm.Enabled }},
+		{"CBOX_PHPFPM_AUTODISCOVER", "false", func(c *Config) bool { return !c.PHPFpm.Autodiscover }},
+		{"CBOX_PHPFPM_RETRIES", "42", func(c *Config) bool { return c.PHPFpm.Retries == 42 }},
+		{"CBOX_PHPFPM_RETRY_DELAY", "7", func(c *Config) bool { return c.PHPFpm.RetryDelay == 7 }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.env, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+			t.Setenv(tt.env, tt.value)
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load() unexpected error: %v", err)
+			}
+
+			if !tt.assert(cfg) {
+				t.Errorf("%s=%s did not take effect: %+v", tt.env, tt.value, cfg)
+			}
+		})
+	}
+}
+
+// The documented manual pool example sets socket and status_path but no
+// status_socket. Collection dials StatusSocket exclusively, so that example
+// used to produce `unsupported socket format: ""` on every scrape and no pool
+// metrics at all — while still reporting a successful scrape.
+func TestLoad_ManualPoolGetsStatusSocketFallback(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	viper.SetConfigType("yaml")
+	if err := viper.ReadConfig(strings.NewReader(`
+phpfpm:
+  pools:
+    - socket: "unix:///var/run/php-fpm.sock"
+    - socket: "tcp://127.0.0.1:9000"
+      status_socket: "tcp://127.0.0.1:9001"
+      status_path: /custom-status
+`)); err != nil {
+		t.Fatalf("Failed to read test config: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() unexpected error: %v", err)
+	}
+
+	if len(cfg.PHPFpm.Pools) != 2 {
+		t.Fatalf("Expected 2 pools, got %d", len(cfg.PHPFpm.Pools))
+	}
+
+	if got := cfg.PHPFpm.Pools[0].StatusSocket; got != "unix:///var/run/php-fpm.sock" {
+		t.Errorf("Expected status_socket to fall back to socket, got %q", got)
+	}
+	if got := cfg.PHPFpm.Pools[0].StatusPath; got != "/status" {
+		t.Errorf("Expected status_path to default to /status, got %q", got)
+	}
+
+	// An explicit status socket and path must survive untouched.
+	if got := cfg.PHPFpm.Pools[1].StatusSocket; got != "tcp://127.0.0.1:9001" {
+		t.Errorf("Expected the explicit status_socket to be kept, got %q", got)
+	}
+	if got := cfg.PHPFpm.Pools[1].StatusPath; got != "/custom-status" {
+		t.Errorf("Expected the explicit status_path to be kept, got %q", got)
 	}
 }

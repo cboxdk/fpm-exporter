@@ -241,7 +241,7 @@ Error: Laravel site 'App' path does not contain artisan file: /var/www/html
 
 | Old Syntax | New Syntax |
 |------------|------------|
-| `name=App,path=/path` | `--laravel App:/path` or `--laravel-site name=App path=/path` |
+| `name=App,path=/path` | `--laravel App:/path`, or `--laravel-site name=App --laravel-site path=/path` |
 | `appinfo=true` | `--laravel-site appinfo=true` |
 | `connection=redis,queues=a\|b` | `--laravel-site queues.redis=a,b` |
 | Multiple `--laravel` flags | Multiple `--laravel-site` flags or config file |

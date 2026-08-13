@@ -38,8 +38,9 @@ more than the FastCGI socket:
 | **App info** | `php artisan about --json`, available from Laravel 9 onwards |
 | **Permissions** | The exporter's user must be able to boot the application and reach its queue backends |
 
-Each Artisan call is bounded by the site's `timeout` (10s by default) and by the
-overall `monitor.scrape_timeout` (15s by default).
+Each Artisan call is bounded by the site's `timeout` (5s by default) and by the
+overall `monitor.scrape_timeout` (8s by default), which stays below Prometheus'
+own `scrape_timeout` so one slow site cannot cost the target all its metrics.
 
 ## Building from source
 

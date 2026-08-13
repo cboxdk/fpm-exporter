@@ -1,7 +1,9 @@
 package serve
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,9 @@ import (
 	"github.com/cboxdk/fpm-exporter/internal/config"
 	"github.com/cboxdk/fpm-exporter/internal/laravel"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
+	"github.com/cboxdk/fpm-exporter/internal/metrics"
+	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
+	"github.com/cboxdk/fpm-exporter/internal/server"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
@@ -158,15 +163,12 @@ func TestBoolToFloat(t *testing.T) {
 
 func TestPrometheusCollector_Collect_DisabledFPM(t *testing.T) {
 	cfg := &config.Config{
-		PHPFpm: config.FPMConfig{
-			Enabled: false,
-		},
+		PHPFpm:  config.FPMConfig{Enabled: false},
 		Laravel: []config.LaravelConfig{},
 	}
 
 	collector := NewPrometheusCollector(cfg)
 
-	// Create a test registry and gather metrics
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collector)
 
@@ -175,27 +177,34 @@ func TestPrometheusCollector_Collect_DisabledFPM(t *testing.T) {
 		t.Fatalf("Failed to gather metrics: %v", err)
 	}
 
-	// Should have some metrics even with FPM disabled
-	if len(metricFamilies) == 0 {
-		t.Errorf("Expected some metrics even with FPM disabled")
-	}
-
-	// Look for the up metric indicating FPM is down
-	foundUpMetric := false
+	names := map[string]*dto.MetricFamily{}
 	for _, mf := range metricFamilies {
-		if mf.GetName() == "phpfpm_up" {
-			foundUpMetric = true
-			if len(mf.GetMetric()) > 0 {
-				value := mf.GetMetric()[0].GetGauge().GetValue()
-				if value != 0 {
-					t.Errorf("Expected phpfpm_up to be 0 when FPM disabled, got %f", value)
-				}
-			}
-		}
+		names[mf.GetName()] = mf
 	}
 
-	if !foundUpMetric {
-		t.Errorf("Expected to find phpfpm_up metric")
+	// With no pools configured there is nothing to report up or down. The old
+	// synthetic phpfpm_up{pool="none"} placeholder said nothing and could
+	// collide with a pool legitimately named "none".
+	if _, ok := names["phpfpm_up"]; ok {
+		t.Errorf("Expected no phpfpm_up series when no pools are configured")
+	}
+
+	// The honest signal for "nothing is configured" is its own gauge.
+	pools, ok := names["phpfpm_pools_configured"]
+	if !ok {
+		t.Fatalf("Expected phpfpm_pools_configured to be emitted")
+	}
+	if got := pools.GetMetric()[0].GetGauge().GetValue(); got != 0 {
+		t.Errorf("Expected phpfpm_pools_configured to be 0, got %v", got)
+	}
+
+	// The exporter itself is still healthy.
+	success, ok := names["phpfpm_scrape_success"]
+	if !ok {
+		t.Fatalf("Expected phpfpm_scrape_success to be emitted")
+	}
+	if got := success.GetMetric()[0].GetGauge().GetValue(); got != 1 {
+		t.Errorf("Expected phpfpm_scrape_success to be 1, got %v", got)
 	}
 }
 
@@ -710,5 +719,243 @@ func TestCollectLaravel_PopulatedAppInfo(t *testing.T) {
 	}
 	if debugModes != 1 {
 		t.Errorf("Expected 1 debug mode metric, got %d", debugModes)
+	}
+}
+
+// fakeMetricsSource lets the collector be exercised end to end without PHP-FPM
+// or a Laravel application on the host.
+type fakeMetricsSource struct {
+	metrics *metrics.Metrics
+	err     error
+	calls   int
+}
+
+func (f *fakeMetricsSource) GetMetrics(_ context.Context, _ *config.Config) (*metrics.Metrics, error) {
+	f.calls++
+	return f.metrics, f.err
+}
+
+func gather(t *testing.T, source MetricsSource) map[string]*dto.MetricFamily {
+	t.Helper()
+
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(NewPrometheusCollectorWithSource(&config.Config{}, source))
+
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("Failed to gather metrics: %v", err)
+	}
+
+	byName := make(map[string]*dto.MetricFamily, len(families))
+	for _, family := range families {
+		byName[family.GetName()] = family
+	}
+	return byName
+}
+
+func TestCollect_EmitsPoolMetrics(t *testing.T) {
+	cpu := 12.5
+	source := &fakeMetricsSource{metrics: &metrics.Metrics{
+		Timestamp: time.Now(),
+		Server:    &server.SystemInfo{NodeType: server.NodeDocker, OS: "linux", Architecture: "arm64", CPULimit: 4, MemoryLimitMB: 2048},
+		FpmPools: []phpfpm.PoolOutcome{{
+			Name:   "www",
+			Socket: "unix:///run/php-fpm.sock",
+			Result: &phpfpm.Result{
+				Pools: map[string]phpfpm.Pool{
+					"www": {
+						Name:                "www",
+						AcceptedConnections: 42,
+						ActiveProcesses:     3,
+						IdleProcesses:       7,
+						TotalProcesses:      10,
+						MaxChildrenReached:  1,
+						ProcessesCpu:        &cpu,
+					},
+				},
+			},
+		}},
+		Errors: map[string]string{},
+	}}
+
+	families := gather(t, source)
+
+	if source.calls != 1 {
+		t.Errorf("Expected the source to be consulted once, got %d", source.calls)
+	}
+
+	up, ok := families["phpfpm_up"]
+	if !ok {
+		t.Fatalf("Expected phpfpm_up to be emitted")
+	}
+	if got := up.GetMetric()[0].GetGauge().GetValue(); got != 1 {
+		t.Errorf("Expected phpfpm_up to be 1, got %v", got)
+	}
+
+	assertGauge(t, families, "phpfpm_active_processes", 3)
+	assertGauge(t, families, "phpfpm_idle_processes", 7)
+	assertGauge(t, families, "phpfpm_processes_cpu_avg", cpu)
+
+	if _, ok := families["phpfpm_accepted_connections"]; !ok {
+		t.Errorf("Expected phpfpm_accepted_connections to be emitted")
+	}
+}
+
+func TestCollect_ReportsScrapeFailure(t *testing.T) {
+	// A source that returns nothing at all: there are no pools to name, so the
+	// only honest output is the scrape-health pair.
+	source := &fakeMetricsSource{err: errors.New("php-fpm unreachable")}
+
+	families := gather(t, source)
+
+	if _, ok := families["phpfpm_up"]; ok {
+		t.Errorf("Expected no phpfpm_up series when the source returned nothing")
+	}
+
+	// A failed scrape has to be distinguishable from a successful one that
+	// happened to find no pools.
+	if _, ok := families["phpfpm_scrape_success"]; !ok {
+		t.Fatalf("Expected phpfpm_scrape_success to be emitted")
+	}
+	assertGauge(t, families, "phpfpm_scrape_success", 0)
+}
+
+// When every pool fails, the scrape is a failure — but it still knows which
+// pools it tried, and each must report down under its own labels rather than
+// collapsing into one synthetic series.
+func TestCollect_TotalFailureStillNamesEachPool(t *testing.T) {
+	source := &fakeMetricsSource{
+		err: errors.New("all pools failed"),
+		metrics: &metrics.Metrics{
+			Timestamp: time.Now(),
+			FpmPools: []phpfpm.PoolOutcome{
+				{Name: "www", Socket: "unix:///run/www.sock", Err: errors.New("dial failed")},
+				{Name: "api", Socket: "unix:///run/api.sock", Err: errors.New("dial failed")},
+			},
+			Errors: map[string]string{},
+		},
+	}
+
+	families := gather(t, source)
+
+	assertGauge(t, families, "phpfpm_scrape_success", 0)
+
+	up, ok := families["phpfpm_up"]
+	if !ok {
+		t.Fatalf("Expected phpfpm_up to be emitted for the pools that were tried")
+	}
+	if len(up.GetMetric()) != 2 {
+		t.Fatalf("Expected one series per configured pool, got %d", len(up.GetMetric()))
+	}
+	for _, m := range up.GetMetric() {
+		if m.GetGauge().GetValue() != 0 {
+			t.Errorf("Expected every pool to report down")
+		}
+		for _, l := range m.GetLabel() {
+			if l.GetName() == "pool" && (l.GetValue() == "unknown" || l.GetValue() == "none") {
+				t.Errorf("Expected the real pool name, got the synthetic %q", l.GetValue())
+			}
+		}
+	}
+}
+
+func TestCollect_ReportsScrapeSuccess(t *testing.T) {
+	source := &fakeMetricsSource{metrics: &metrics.Metrics{
+		Timestamp: time.Now(),
+		Fpm:       map[string]*phpfpm.Result{},
+		Errors:    map[string]string{},
+	}}
+
+	families := gather(t, source)
+
+	assertGauge(t, families, "phpfpm_scrape_success", 1)
+}
+
+func assertGauge(t *testing.T, families map[string]*dto.MetricFamily, name string, want float64) {
+	t.Helper()
+
+	family, ok := families[name]
+	if !ok {
+		t.Errorf("Expected %s to be emitted", name)
+		return
+	}
+
+	if got := family.GetMetric()[0].GetGauge().GetValue(); got != want {
+		t.Errorf("Expected %s to be %v, got %v", name, want, got)
+	}
+}
+
+// A pool that cannot be reached must report up=0 under its own labels. It used
+// to vanish from the output, which Prometheus renders as staleness — so the
+// `phpfpm_up == 0` alert the metric's help text promises could never fire.
+func TestCollect_FailedPoolReportsDown(t *testing.T) {
+	source := &fakeMetricsSource{metrics: &metrics.Metrics{
+		Timestamp: time.Now(),
+		FpmPools: []phpfpm.PoolOutcome{
+			{Name: "www", Socket: "unix:///run/www.sock", Err: errors.New("dial failed")},
+			{Name: "api", Socket: "unix:///run/api.sock", Result: &phpfpm.Result{
+				Pools: map[string]phpfpm.Pool{"api": {Name: "api"}},
+			}},
+		},
+		Fpm: map[string]*phpfpm.Result{
+			"unix:///run/api.sock": {Pools: map[string]phpfpm.Pool{"api": {Name: "api"}}},
+		},
+		Errors: map[string]string{"fpm:www": "dial failed"},
+	}}
+
+	families := gather(t, source)
+
+	up, ok := families["phpfpm_up"]
+	if !ok {
+		t.Fatalf("Expected phpfpm_up to be emitted")
+	}
+
+	got := map[string]float64{}
+	for _, m := range up.GetMetric() {
+		var pool string
+		for _, l := range m.GetLabel() {
+			if l.GetName() == "pool" {
+				pool = l.GetValue()
+			}
+		}
+		got[pool] = m.GetGauge().GetValue()
+	}
+
+	if got["www"] != 0 {
+		t.Errorf("Expected the unreachable pool to report up=0, got %v (series: %v)", got["www"], got)
+	}
+	if got["api"] != 1 {
+		t.Errorf("Expected the healthy pool to report up=1, got %v (series: %v)", got["api"], got)
+	}
+}
+
+// A pedantic registry rejects any metric whose descriptor was never sent to
+// Describe. Twenty-two were missing, which was invisible because production and
+// every test used a plain registry — and would have broken the whole Gather the
+// moment anyone reached for testutil.CollectAndCompare.
+func TestCollect_SatisfiesPedanticRegistry(t *testing.T) {
+	size := 5
+	source := &fakeMetricsSource{metrics: &metrics.Metrics{
+		Timestamp: time.Now(),
+		Server:    &server.SystemInfo{NodeType: server.NodeDocker, OS: "linux", Architecture: "arm64"},
+		FpmPools: []phpfpm.PoolOutcome{{
+			Name:   "www",
+			Socket: "unix:///run/www.sock",
+			Result: &phpfpm.Result{Pools: map[string]phpfpm.Pool{"www": {
+				Name:      "www",
+				Processes: []phpfpm.PoolProcess{{PID: 1, State: "Idle", RequestURI: "/"}},
+			}}},
+		}},
+		Laravel: map[string]*laravel.LaravelMetrics{
+			"app": {Queues: &laravel.QueueSizes{"redis": {"default": {Size: &size}}}},
+		},
+		Errors: map[string]string{},
+	}}
+
+	registry := prometheus.NewPedanticRegistry()
+	registry.MustRegister(NewPrometheusCollectorWithSource(&config.Config{}, source))
+
+	if _, err := registry.Gather(); err != nil {
+		t.Fatalf("Pedantic registry rejected the collection: %v", err)
 	}
 }

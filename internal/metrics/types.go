@@ -11,6 +11,9 @@ type Metrics struct {
 	Timestamp time.Time
 	Server    *server.SystemInfo
 	Fpm       map[string]*phpfpm.Result
-	Laravel   map[string]*laravel.LaravelMetrics `json:"laravel,omitempty"`
-	Errors    map[string]string
+	// FpmPools carries the per-pool outcome, including the pools that failed.
+	// Kept off the JSON payload: Fpm is the published shape.
+	FpmPools []phpfpm.PoolOutcome               `json:"-"`
+	Laravel  map[string]*laravel.LaravelMetrics `json:"laravel,omitempty"`
+	Errors   map[string]string
 }

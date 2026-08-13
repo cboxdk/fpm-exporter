@@ -17,9 +17,13 @@ func TestServeCommand_Initialization(t *testing.T) {
 		t.Errorf("Expected serve command Short to be '%s', got '%s'", expectedShort, serveCmd.Short)
 	}
 
-	// Test that Run function is set
-	if serveCmd.Run == nil {
-		t.Errorf("Expected serve command Run function to be set")
+	// serve returns an error so a failure to bind exits non-zero, so the
+	// command carries RunE rather than Run.
+	if serveCmd.RunE == nil {
+		t.Errorf("Expected serve command RunE function to be set")
+	}
+	if serveCmd.Run != nil {
+		t.Errorf("Expected serve command to use RunE, not Run")
 	}
 
 	// Test that the command was added to root
@@ -59,8 +63,8 @@ func TestServeCommand_RunFunction(t *testing.T) {
 	// and dealing with logging initialization, but we can verify it exists
 	// and has the right signature
 
-	if serveCmd.Run == nil {
-		t.Errorf("Expected Run function to be set")
+	if serveCmd.RunE == nil {
+		t.Errorf("Expected RunE function to be set")
 		return
 	}
 
@@ -118,7 +122,7 @@ func TestServeCommand_Integration(t *testing.T) {
 	// Test some specific inherited flags
 	expectedFlags := []string{"config", "debug", "log-level", "autodiscover"}
 	for _, flag := range expectedFlags {
-		if foundServe.Flags().Lookup(flag) == nil {
+		if foundServe.InheritedFlags().Lookup(flag) == nil {
 			t.Errorf("Expected serve command to inherit flag '%s'", flag)
 		}
 	}

@@ -35,31 +35,72 @@ esac
 
 FILENAME="${BINARY}-${OS}-${ARCH}"
 
-# Build download URL
+# Build download URLs
 if [ "$VERSION" = "latest" ]; then
-    URL="https://github.com/${REPO}/releases/latest/download/${FILENAME}"
+    BASE_URL="https://github.com/${REPO}/releases/latest/download"
 else
-    URL="https://github.com/${REPO}/releases/download/${VERSION}/${FILENAME}"
+    BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 fi
+
+URL="${BASE_URL}/${FILENAME}"
+CHECKSUM_URL="${BASE_URL}/checksums.txt"
+
+# A private temporary directory, so nothing can race us to a predictable path.
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+download() {
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$1" -o "$2"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q "$1" -O "$2"
+    else
+        echo "Error: curl or wget required"
+        exit 1
+    fi
+}
 
 echo "Downloading ${BINARY} ${VERSION} for ${OS}/${ARCH}..."
-if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$URL" -o "/tmp/${BINARY}"
-elif command -v wget >/dev/null 2>&1; then
-    wget -q "$URL" -O "/tmp/${BINARY}"
+download "$URL" "${TMP_DIR}/${FILENAME}"
+
+# Verify the download against the release checksums. Releases before v3.2.0 do
+# not publish them, so a missing file is a warning rather than a failure.
+if download "$CHECKSUM_URL" "${TMP_DIR}/checksums.txt" 2>/dev/null; then
+    if command -v sha256sum >/dev/null 2>&1; then
+        SHA_CMD="sha256sum"
+    elif command -v shasum >/dev/null 2>&1; then
+        SHA_CMD="shasum -a 256"
+    fi
+
+    if [ -n "${SHA_CMD:-}" ]; then
+        EXPECTED=$(grep " ${FILENAME}\$" "${TMP_DIR}/checksums.txt" | awk '{print $1}')
+        ACTUAL=$(cd "$TMP_DIR" && $SHA_CMD "$FILENAME" | awk '{print $1}')
+
+        if [ -z "$EXPECTED" ]; then
+            echo "Warning: no checksum listed for ${FILENAME}, skipping verification"
+        elif [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "Error: checksum mismatch for ${FILENAME}"
+            echo "  expected: $EXPECTED"
+            echo "  actual:   $ACTUAL"
+            exit 1
+        else
+            echo "Checksum verified."
+        fi
+    else
+        echo "Warning: no sha256sum or shasum available, skipping verification"
+    fi
 else
-    echo "Error: curl or wget required"
-    exit 1
+    echo "Warning: no checksums published for ${VERSION}, skipping verification"
 fi
 
-chmod +x "/tmp/${BINARY}"
+chmod +x "${TMP_DIR}/${FILENAME}"
 
 # Install (may need sudo)
 if [ -w "$INSTALL_DIR" ]; then
-    mv "/tmp/${BINARY}" "${INSTALL_DIR}/${BINARY}"
+    mv "${TMP_DIR}/${FILENAME}" "${INSTALL_DIR}/${BINARY}"
 else
     echo "Installing to ${INSTALL_DIR} (requires sudo)..."
-    sudo mv "/tmp/${BINARY}" "${INSTALL_DIR}/${BINARY}"
+    sudo mv "${TMP_DIR}/${FILENAME}" "${INSTALL_DIR}/${BINARY}"
 fi
 
 echo "Installed ${BINARY} to ${INSTALL_DIR}/${BINARY}"

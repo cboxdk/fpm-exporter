@@ -15,6 +15,7 @@ import (
 )
 
 type DiscoveredFPM struct {
+	Name         string
 	ConfigPath   string
 	StatusPath   string
 	Binary       string
@@ -55,6 +56,20 @@ func DiscoverFPMProcesses() ([]DiscoveredFPM, error) {
 			continue
 		}
 
+		// The process table is not a trust boundary: any local user can start a
+		// process whose name matches and whose command line names a config path
+		// they control. Both are about to be handed to exec.
+		if err := trustedPath(exe); err != nil {
+			logging.L().Warn("Cbox Refusing to run discovered PHP-FPM binary",
+				"pid", p.Pid, "binary", exe, "reason", err)
+			continue
+		}
+		if err := trustedPath(config); err != nil {
+			logging.L().Warn("Cbox Refusing to read discovered PHP-FPM config",
+				"pid", p.Pid, "config", config, "reason", err)
+			continue
+		}
+
 		parsed, err := ParseFPMConfig(exe, config)
 		if err != nil {
 			logging.L().Error("Cbox Failed to parse FPM config", "config", config, "error", err)
@@ -84,6 +99,7 @@ func DiscoverFPMProcesses() ([]DiscoveredFPM, error) {
 			cliBinary, _ := findMatchingCliBinary(exe)
 
 			found = append(found, DiscoveredFPM{
+				Name:         poolName,
 				ConfigPath:   config,
 				StatusPath:   status,
 				Binary:       exe,

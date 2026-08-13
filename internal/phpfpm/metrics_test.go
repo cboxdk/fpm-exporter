@@ -233,14 +233,18 @@ func TestGetMetrics_ErrorHandling(t *testing.T) {
 		},
 	}
 
+	// A pool that cannot be scraped is reported as a failed outcome, not
+	// dropped: the collector needs it to emit up=0. When every configured pool
+	// fails, that is a scrape failure.
 	results, err = GetMetrics(ctx, invalidConfig)
-	if err != nil {
-		t.Errorf("Expected no error (should continue on individual pool failures), got: %v", err)
+	if err == nil {
+		t.Errorf("Expected an error when every configured pool fails")
 	}
-
-	// Should return empty results since all pools failed
-	if len(results) != 0 {
-		t.Errorf("Expected empty results with invalid config, got %d", len(results))
+	if len(results) != 1 {
+		t.Fatalf("Expected one outcome per configured pool, got %d", len(results))
+	}
+	if results[0].Err == nil {
+		t.Errorf("Expected the invalid pool to carry its error")
 	}
 
 	// Test with non-existent socket
@@ -258,13 +262,14 @@ func TestGetMetrics_ErrorHandling(t *testing.T) {
 	}
 
 	results, err = GetMetrics(ctx, nonExistentConfig)
-	if err != nil {
-		t.Errorf("Expected no error (should continue on connection failures), got: %v", err)
+	if err == nil {
+		t.Errorf("Expected an error when the only configured pool is unreachable")
 	}
-
-	// Should return empty results since connection failed
-	if len(results) != 0 {
-		t.Errorf("Expected empty results with non-existent socket, got %d", len(results))
+	if len(results) != 1 || results[0].Err == nil {
+		t.Errorf("Expected the unreachable pool to be reported with its error, got %+v", results)
+	}
+	if results[0].Result != nil {
+		t.Errorf("Expected no Result for a failed pool")
 	}
 }
 
@@ -456,15 +461,24 @@ func TestGetMetrics_PoolConfigParsing(t *testing.T) {
 		},
 	}
 
-	// This will fail to connect but should iterate through all pools
+	// Both pools fail to connect, so this is a failed scrape — but every
+	// configured pool must still come back as an outcome, in order, so the
+	// collector can report each one down individually.
 	results, err := GetMetrics(ctx, cfg)
-	if err != nil {
-		t.Errorf("Expected no error from GetMetrics (individual failures should be handled), got: %v", err)
+	if err == nil {
+		t.Errorf("Expected an error when both configured pools are unreachable")
 	}
 
-	// Results will be empty since connections fail, but function should not panic
-	if results == nil {
-		t.Errorf("Expected non-nil results map")
+	if len(results) != 2 {
+		t.Fatalf("Expected an outcome for each of the 2 configured pools, got %d", len(results))
+	}
+	for i, outcome := range results {
+		if outcome.Err == nil {
+			t.Errorf("Expected pool %d to carry an error", i)
+		}
+		if outcome.Socket == "" {
+			t.Errorf("Expected pool %d to be labelled with its socket", i)
+		}
 	}
 }
 
@@ -558,155 +572,50 @@ func TestResult_TimestampHandling(t *testing.T) {
 	}
 }
 
-func TestPool_ProcessCountCalculation(t *testing.T) {
-	// Test pool with processes to verify process counting logic
-	pool := Pool{
-		Name: "test",
-		// Original counts from PHP-FPM status (may be incorrect)
-		ActiveProcesses: 99, // This should be recalculated
-		IdleProcesses:   99, // This should be recalculated
-		TotalProcesses:  99, // This should be recalculated
-		Processes: []PoolProcess{
-			{
-				PID:               1001,
-				State:             "Running",
-				RequestURI:        "/app/test",
-				LastRequestCPU:    1.0,
-				LastRequestMemory: 1000000,
-			},
-			{
-				PID:               1002,
-				State:             "Idle",
-				RequestURI:        "/status", // This should be filtered out from CPU/mem calc
-				LastRequestCPU:    2.0,
-				LastRequestMemory: 2000000,
-			},
-			{
-				PID:               1003,
-				State:             "Running",
-				RequestURI:        "/app/another",
-				LastRequestCPU:    3.0,
-				LastRequestMemory: 3000000,
-			},
-			{
-				PID:               1004,
-				State:             "Reading Headers",
-				RequestURI:        "/app/third",
-				LastRequestCPU:    4.0,
-				LastRequestMemory: 4000000,
-			},
-		},
+func TestRecountProcesses(t *testing.T) {
+	pool := Pool{Processes: []PoolProcess{
+		{PID: 1, State: "Running", RequestURI: "/checkout?token=secret", LastRequestCPU: 10, LastRequestMemory: 100},
+		{PID: 2, State: "Idle", RequestURI: "/home", LastRequestCPU: 20, LastRequestMemory: 200},
+		{PID: 3, State: "Reading headers", RequestURI: "/api/v1", LastRequestCPU: 30, LastRequestMemory: 300},
+		// The exporter's own traffic must not count towards the averages.
+		{PID: 4, State: "Running", RequestURI: "/status?json&full", LastRequestCPU: 999, LastRequestMemory: 999},
+		{PID: 5, State: "Running", RequestURI: "/" + opcacheScriptPrefix + "123.php", LastRequestCPU: 999, LastRequestMemory: 999},
+	}}
+
+	recountProcesses(&pool, "/status")
+
+	if pool.ActiveProcesses != 4 {
+		t.Errorf("Expected 4 active (running, reading headers), got %d", pool.ActiveProcesses)
+	}
+	if pool.IdleProcesses != 1 {
+		t.Errorf("Expected 1 idle, got %d", pool.IdleProcesses)
+	}
+	if pool.TotalProcesses != 5 {
+		t.Errorf("Expected 5 total, got %d", pool.TotalProcesses)
 	}
 
-	// Simulate the process counting logic from GetMetrics
-	var totalCPU, totalMem float64
-	var count int
-	var activeCount, idleCount int64
-	statusPath := "/status"
-
-	for _, proc := range pool.Processes {
-		// Count processes by state
-		switch strings.ToLower(proc.State) {
-		case "running", "reading headers", "info", "finishing", "ending":
-			activeCount++
-		case "idle":
-			idleCount++
-		}
-
-		// CPU/memory calculation (exclude status and opcache requests)
-		if !strings.HasPrefix(proc.RequestURI, statusPath) &&
-			!strings.HasPrefix(proc.RequestURI, "/opcache-status-") {
-			totalCPU += float64(proc.LastRequestCPU)
-			totalMem += float64(proc.LastRequestMemory)
-			count++
-		}
+	// (10+20+30)/3 — the two self-inflicted requests are excluded.
+	if pool.ProcessesCpu == nil || *pool.ProcessesCpu != 20 {
+		t.Errorf("Expected the exporter's own requests to be excluded from the CPU average, got %v", pool.ProcessesCpu)
+	}
+	if pool.ProcessesMemory == nil || *pool.ProcessesMemory != 200 {
+		t.Errorf("Expected the exporter's own requests to be excluded from the memory average, got %v", pool.ProcessesMemory)
 	}
 
-	// Test process counting - should be calculated from actual process list
-	expectedActive := int64(3) // "Running" + "Reading Headers" + "Running"
-	expectedIdle := int64(1)   // "Idle"
-	expectedTotal := int64(4)  // Total processes in list
-
-	if activeCount != expectedActive {
-		t.Errorf("Expected %d active processes, got %d", expectedActive, activeCount)
-	}
-
-	if idleCount != expectedIdle {
-		t.Errorf("Expected %d idle processes, got %d", expectedIdle, idleCount)
-	}
-
-	totalProcesses := int64(len(pool.Processes))
-	if totalProcesses != expectedTotal {
-		t.Errorf("Expected %d total processes, got %d", expectedTotal, totalProcesses)
-	}
-
-	// Test CPU/memory calculation (3 processes should be counted - filtering out /status)
-	expectedCPUMemCount := 3
-	if count != expectedCPUMemCount {
-		t.Errorf("Expected %d processes to be counted for CPU/mem, got %d", expectedCPUMemCount, count)
-	}
-
-	expectedAvgCPU := (1.0 + 3.0 + 4.0) / 3.0 // Average excluding /status request
-	actualAvgCPU := totalCPU / float64(count)
-	if actualAvgCPU != expectedAvgCPU {
-		t.Errorf("Expected average CPU to be %f, got %f", expectedAvgCPU, actualAvgCPU)
-	}
-
-	expectedAvgMem := (1000000.0 + 3000000.0 + 4000000.0) / 3.0 // Average excluding /status request
-	actualAvgMem := totalMem / float64(count)
-	if actualAvgMem != expectedAvgMem {
-		t.Errorf("Expected average memory to be %f, got %f", expectedAvgMem, actualAvgMem)
+	if got := pool.Processes[0].RequestURI; got != "/checkout" {
+		t.Errorf("Expected the query string to be stripped, got %q", got)
 	}
 }
 
-func TestPool_ProcessStateRecognition(t *testing.T) {
-	// Test different process states are correctly categorized
-	testCases := []struct {
-		state    string
-		isActive bool
-		isIdle   bool
-	}{
-		{"Running", true, false},
-		{"running", true, false},
-		{"Reading Headers", true, false},
-		{"reading headers", true, false},
-		{"Info", true, false},
-		{"info", true, false},
-		{"Finishing", true, false},
-		{"finishing", true, false},
-		{"Ending", true, false},
-		{"ending", true, false},
-		{"Idle", false, true},
-		{"idle", false, true},
-		{"Unknown", false, false}, // Unknown states are not counted
-		{"", false, false},        // Empty state is not counted
-	}
+// A pool where every process is the exporter's own must not divide by zero.
+func TestRecountProcesses_AllExcluded(t *testing.T) {
+	pool := Pool{Processes: []PoolProcess{
+		{PID: 1, State: "Running", RequestURI: "/status", LastRequestCPU: 5},
+	}}
 
-	for _, tc := range testCases {
-		t.Run("state_"+tc.state, func(t *testing.T) {
-			var activeCount, idleCount int64
+	recountProcesses(&pool, "/status")
 
-			proc := PoolProcess{State: tc.state}
-
-			// Simulate the state counting logic
-			switch strings.ToLower(proc.State) {
-			case "running", "reading headers", "info", "finishing", "ending":
-				activeCount++
-			case "idle":
-				idleCount++
-			}
-
-			if tc.isActive && activeCount != 1 {
-				t.Errorf("State '%s' should be counted as active", tc.state)
-			}
-
-			if tc.isIdle && idleCount != 1 {
-				t.Errorf("State '%s' should be counted as idle", tc.state)
-			}
-
-			if !tc.isActive && !tc.isIdle && (activeCount > 0 || idleCount > 0) {
-				t.Errorf("State '%s' should not be counted as active or idle", tc.state)
-			}
-		})
+	if pool.ProcessesCpu != nil {
+		t.Errorf("Expected no CPU average when every request was excluded, got %v", *pool.ProcessesCpu)
 	}
 }
