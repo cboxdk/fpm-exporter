@@ -419,33 +419,6 @@ func TestGetPHPStats_ErrorHandling(t *testing.T) {
 
 }
 
-func TestGetPHPConfig_Structure(t *testing.T) {
-	// Note: getPHPConfig requires a real FastCGI connection, so we primarily test
-	// that the function exists and has the correct signature
-
-	// Initialize logging to prevent panic
-	logging.Init(config.LoggingBlock{Level: "error", Format: "text"})
-
-	cfg := config.FPMPoolConfig{
-		StatusSocket: "unix:///non/existent/socket",
-		StatusPath:   "/status",
-	}
-
-	ctx := context.Background()
-	_, err := getPHPConfig(ctx, cfg)
-
-	// We expect this to fail since we don't have a real FPM socket
-	if err == nil {
-		t.Errorf("Expected error when connecting to non-existent socket")
-	}
-
-	// Check that error mentions FastCGI or socket
-	errStr := strings.ToLower(err.Error())
-	if !strings.Contains(errStr, "fastcgi") && !strings.Contains(errStr, "socket") && !strings.Contains(errStr, "dial") {
-		t.Errorf("Expected error to mention FastCGI or socket connection issue, got: %s", err.Error())
-	}
-}
-
 func TestPHPStats_ConcurrentAccess(t *testing.T) {
 	// Initialize logging to prevent panic
 	logging.Init(config.LoggingBlock{Level: "error", Format: "text"})

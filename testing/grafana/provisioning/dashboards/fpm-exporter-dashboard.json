@@ -1,7 +1,7 @@
 {
   "id": null,
-  "title": "PHPeek PHP-FPM Exporter",
-  "tags": ["php-fpm", "laravel", "phpeek"],
+  "title": "Cbox FPM Exporter PHP-FPM Exporter",
+  "tags": ["php-fpm", "laravel", "fpm-exporter"],
   "timezone": "browser",
   "schemaVersion": 36,
   "version": 2,
@@ -44,7 +44,7 @@
           "refId": "C"
         },
         {
-          "expr": "phpfpm_config_max_children",
+          "expr": "phpfpm_pm_max_children_config",
           "legendFormat": "max {{pool}} ({{socket}})",
           "refId": "D"
         }

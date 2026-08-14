@@ -153,11 +153,33 @@ Labels: `site`, `type` (broadcasting, cache, database, logs, mail, queue, sessio
 
 ### Queue Metrics
 
+All labelled `{site, connection, queue}`.
+
 | Metric | Type | Description |
 |--------|------|-------------|
-| `laravel_queue_size` | gauge | Number of jobs in queue |
+| `laravel_queue_size` | gauge | Jobs in the queue |
+| `laravel_queue_pending` | gauge | Jobs available to be processed now |
+| `laravel_queue_scheduled` | gauge | Jobs delayed until a future time |
+| `laravel_queue_reserved` | gauge | Jobs currently held by a worker |
+| `laravel_queue_oldest_pending` | gauge | Age in seconds of the oldest pending job |
+| `laravel_queue_failed` | gauge | Failed jobs recorded for this queue |
+| `laravel_queue_failed_1m` | gauge | Jobs that failed in the last minute |
+| `laravel_queue_failed_5m` | gauge | Jobs that failed in the last 5 minutes |
+| `laravel_queue_failed_10m` | gauge | Jobs that failed in the last 10 minutes |
+| `laravel_queue_failed_rate_1m` | gauge | Failures per minute over the last minute |
+| `laravel_queue_failed_rate_5m` | gauge | Failures per minute over the last 5 minutes |
+| `laravel_queue_failed_rate_10m` | gauge | Failures per minute over the last 10 minutes |
 
-Labels: `site`, `connection`, `queue`
+`laravel_queue_oldest_pending` is usually the better alert than queue depth: a
+queue of 10,000 jobs being drained is healthy, a queue of 3 jobs that has not
+moved in ten minutes is not.
+
+The windowed `_1m`/`_5m`/`_10m` series are computed inside the application at
+scrape time. `laravel_queue_failed` plus `rate()` is the more idiomatic way to
+ask the same question, and these will be reconsidered in a future major.
+
+Failed-job metrics require a database-backed failed-job provider; with any other
+provider they are absent.
 
 ## System Metrics
 

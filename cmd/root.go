@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,12 +35,17 @@ var rootCmd = &cobra.Command{
 	Use:   "fpm-exporter",
 	Short: "Cbox FPM Exporter for monitoring PHP-FPM",
 	Long:  `fpm-exporter is a lightweight PHP-FPM metrics exporter for Prometheus`,
+	// A bad config path is not a usage error: printing twelve lines of flags
+	// after it buries the actual message. cobra also printed the error itself,
+	// so every failure appeared twice under two different prefixes.
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Read config file if specified
 		if path := viper.GetString("config"); path != "" {
 			viper.SetConfigFile(path)
 			if err := viper.ReadInConfig(); err != nil {
-				return fmt.Errorf("failed to read config file: %w", err)
+				return fmt.Errorf("failed to read config file %s: %w", path, err)
 			}
 		}
 
@@ -83,6 +89,14 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
+		// Autodiscovery is collection work: it scans the process table, runs
+		// `php-fpm -tt` per master and probes PHP binaries. `version` used to
+		// pay all of it -- a measured 11 seconds, ending in an ERROR about a
+		// subsystem the command does not use.
+		if !discoversPools(cmd) {
+			return nil
+		}
+
 		// phpfpm autodiscover
 		if Config.PHPFpm.Enabled && Config.PHPFpm.Autodiscover {
 			var discovered []phpfpm.DiscoveredFPM
@@ -120,6 +134,17 @@ var rootCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+// discoversPools reports whether a command actually collects metrics, and so
+// needs the pool list resolved before it runs.
+func discoversPools(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Name() == "serve" {
+			return true
+		}
+	}
+	return false
 }
 
 // parseLaravelSites parses Laravel configuration from all sources
@@ -368,45 +393,49 @@ func mergeSite(base, override config.LaravelConfig) config.LaravelConfig {
 	return merged
 }
 
-// validateSites validates all Laravel sites
+// validateSites validates all Laravel sites, reporting everything wrong at once
+// rather than one failure per run -- with several sites and a config error in
+// each, fixing them one at a time means one restart per typo.
 func validateSites(sites []config.LaravelConfig) error {
 	seenNames := map[string]bool{}
+	var problems []error
 
 	for i, site := range sites {
-		// Ensure name is set
 		if site.Name == "" {
-			return fmt.Errorf("laravel site at index %d missing name", i)
+			problems = append(problems, fmt.Errorf("laravel site at index %d has no name", i))
+			continue
 		}
 
-		// Check for duplicate names
 		if seenNames[site.Name] {
-			return fmt.Errorf("duplicate laravel site name: %s", site.Name)
+			problems = append(problems, fmt.Errorf("duplicate laravel site name: %s", site.Name))
+			continue
 		}
 		seenNames[site.Name] = true
 
-		// Validate path is set
 		if site.Path == "" {
-			return fmt.Errorf("laravel site %q missing path", site.Name)
+			problems = append(problems, fmt.Errorf("laravel site %q has no path", site.Name))
+			continue
 		}
 
-		// Validate path exists
 		if _, err := os.Stat(site.Path); os.IsNotExist(err) {
-			return fmt.Errorf("laravel site %q path does not exist: %s", site.Name, site.Path)
+			problems = append(problems, fmt.Errorf("laravel site %q path does not exist: %s", site.Name, site.Path))
+			continue
 		}
 
-		// Check if path looks like a Laravel app (has artisan)
 		artisanPath := filepath.Join(site.Path, "artisan")
 		if _, err := os.Stat(artisanPath); os.IsNotExist(err) {
-			return fmt.Errorf("laravel site %q path does not contain artisan file: %s", site.Name, site.Path)
+			problems = append(problems, fmt.Errorf("laravel site %q path does not contain an artisan file: %s", site.Name, site.Path))
 		}
 	}
 
-	return nil
+	return errors.Join(problems...)
 }
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "Command execution failed:", err)
+		// cobra's own printing is silenced, so this is the single place an
+		// error reaches the operator.
+		_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
 }
