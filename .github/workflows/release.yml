@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+env:
+  # Kept in step with test.yml: releasing on an older toolchain than the one
+  # the tests and the vulnerability scan run on defeats both.
+  GO_VERSION: '1.26.x'
+
 jobs:
   build:
     name: Build and Release
@@ -25,7 +30,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.1'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Set version info
         id: vars

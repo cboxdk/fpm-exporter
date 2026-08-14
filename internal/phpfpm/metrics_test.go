@@ -2,7 +2,6 @@ package phpfpm
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -270,45 +269,6 @@ func TestGetMetrics_ErrorHandling(t *testing.T) {
 	}
 	if results[0].Result != nil {
 		t.Errorf("Expected no Result for a failed pool")
-	}
-}
-
-func TestGetMetricsForPool_ErrorHandling(t *testing.T) {
-	// Initialize logging to prevent panic
-	logging.Init(config.LoggingBlock{Level: "error", Format: "text"})
-
-	ctx := context.Background()
-
-	// Test with invalid socket format
-	poolConfig := config.FPMPoolConfig{
-		Socket:     "invalid-format",
-		StatusPath: "/status",
-	}
-
-	_, err := GetMetricsForPool(ctx, poolConfig)
-	if err == nil {
-		t.Errorf("Expected error for invalid socket format")
-	}
-
-	if !strings.Contains(err.Error(), "invalid FPM socket address") {
-		t.Errorf("Expected error to mention invalid socket address, got: %s", err.Error())
-	}
-
-	// Test with non-existent socket
-	poolConfig2 := config.FPMPoolConfig{
-		Socket:     "unix:///non/existent/socket",
-		StatusPath: "/status",
-	}
-
-	_, err = GetMetricsForPool(ctx, poolConfig2)
-	if err == nil {
-		t.Errorf("Expected error for non-existent socket")
-	}
-
-	// Should be a FastCGI dial error
-	errStr := strings.ToLower(err.Error())
-	if !strings.Contains(errStr, "failed to dial fastcgi") && !strings.Contains(errStr, "invalid fpm socket address") {
-		t.Errorf("Expected FastCGI dial error, got: %s", err.Error())
 	}
 }
 

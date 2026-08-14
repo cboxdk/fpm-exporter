@@ -29,11 +29,13 @@ func Init(cfg config.LoggingBlock) {
 		lvl = slog.LevelInfo
 	}
 
+	// stderr, not stdout: stdout is the command's own output, and
+	// `VER=$(fpm-exporter version)` used to capture JSON log lines.
 	var handler slog.Handler
 	if cfg.Format == "json" {
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl})
+		handler = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})
 	} else {
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl})
+		handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})
 	}
 
 	l := slog.New(handler)

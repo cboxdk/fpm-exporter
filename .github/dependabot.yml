@@ -1,0 +1,26 @@
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # The Prometheus client and its transitive model/common packages move
+      # together; separate PRs for them just create conflicts.
+      prometheus:
+        patterns:
+          - github.com/prometheus/*
+      golang-x:
+        patterns:
+          - golang.org/x/*
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"

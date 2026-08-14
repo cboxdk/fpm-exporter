@@ -312,60 +312,6 @@ func dialTimeout(poolCfg config.FPMPoolConfig) time.Duration {
 	return 3 * time.Second
 }
 
-func GetMetricsForPool(ctx context.Context, pool config.FPMPoolConfig) (*Result, error) {
-	scheme, address, path, err := ParseAddress(pool.StatusSocket, pool.StatusPath)
-	if err != nil {
-		return nil, fmt.Errorf("invalid FPM socket address: %w", err)
-	}
-
-	client, err := fcgx.DialContext(ctx, scheme, address)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial FastCGI: %w", err)
-	}
-	defer func() { _ = client.Close() }()
-
-	env := map[string]string{
-		"SCRIPT_FILENAME": path,
-		"SCRIPT_NAME":     path,
-		"SERVER_SOFTWARE": "fpm-exporter",
-		"REMOTE_ADDR":     "127.0.0.1",
-		"QUERY_STRING":    "json&full",
-	}
-
-	resp, err := client.Get(ctx, env)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	var poolData Pool
-	err = fcgx.ReadJSON(resp, &poolData)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse FPM JSON: %w", err)
-	}
-
-	// Recalculate process counts from actual process list
-	var activeCount, idleCount int64
-	for _, proc := range poolData.Processes {
-		switch strings.ToLower(proc.State) {
-		case "running", "reading headers", "info", "finishing", "ending":
-			activeCount++
-		case "idle":
-			idleCount++
-		}
-	}
-
-	poolData.ActiveProcesses = activeCount
-	poolData.IdleProcesses = idleCount
-	poolData.TotalProcesses = int64(len(poolData.Processes))
-
-	return &Result{
-		Timestamp: time.Now(),
-		Pools:     map[string]Pool{poolData.Name: poolData},
-	}, nil
-}
-
 func ptr[T any](v T) *T {
 	return &v
 }

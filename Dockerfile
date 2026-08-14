@@ -1,4 +1,6 @@
-# Dockerfile for local testing with PHP-FPM
+# Development image for exercising the exporter against a real PHP-FPM.
+# This is not the exporter image -- no image is published; see
+# docs/getting-started/installation.md for building one from a release binary.
 FROM php:8.4-fpm-bookworm
 
 # Install extensions and tools
@@ -7,7 +9,7 @@ RUN apt-get update && \
     docker-php-ext-install opcache
 
 # Install Go
-ENV GO_VERSION=1.22.2
+ENV GO_VERSION=1.26.4
 RUN wget https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go$GO_VERSION.linux-amd64.tar.gz && \
     rm go$GO_VERSION.linux-amd64.tar.gz

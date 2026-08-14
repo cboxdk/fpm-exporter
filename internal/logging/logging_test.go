@@ -12,12 +12,12 @@ import (
 
 func TestInit_JSONFormat(t *testing.T) {
 	// Capture stdout
-	oldStdout := os.Stdout
+	oldStderr := os.Stderr
 	r, w, _ := os.Pipe()
-	os.Stdout = w
+	os.Stderr = w
 
 	defer func() {
-		os.Stdout = oldStdout
+		os.Stderr = oldStderr
 		_ = w.Close()
 	}()
 
@@ -43,7 +43,7 @@ func TestInit_JSONFormat(t *testing.T) {
 	L().Debug("test debug message")
 
 	_ = w.Close()
-	os.Stdout = oldStdout
+	os.Stderr = oldStderr
 
 	var output bytes.Buffer
 	_, _ = output.ReadFrom(r)
