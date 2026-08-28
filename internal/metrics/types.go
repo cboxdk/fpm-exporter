@@ -2,8 +2,8 @@ package metrics
 
 import (
 	"github.com/cboxdk/fpm-exporter/internal/laravel"
-	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
 	"github.com/cboxdk/fpm-exporter/internal/server"
+	"github.com/cboxdk/phpfpm"
 	"time"
 )
 

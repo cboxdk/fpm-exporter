@@ -11,7 +11,7 @@ import (
 
 	"github.com/cboxdk/fpm-exporter/internal/config"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
-	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
+	"github.com/cboxdk/phpfpm"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -99,11 +99,11 @@ var rootCmd = &cobra.Command{
 
 		// phpfpm autodiscover
 		if Config.PHPFpm.Enabled && Config.PHPFpm.Autodiscover {
-			var discovered []phpfpm.DiscoveredFPM
+			var discovered []phpfpm.Discovered
 			var err error
 
 			for i := 0; i < Config.PHPFpm.Retries; i++ {
-				discovered, err = phpfpm.DiscoverFPMProcesses()
+				discovered, err = phpfpm.Discover(logging.L())
 				if err == nil && len(discovered) > 0 {
 					break
 				}

@@ -30,6 +30,60 @@
       "version": "v1.0.1"
     },
     {
+      "bom-ref": "pkg:golang/github.com/cboxdk/fcgx@v1.1.0?type=module",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/cboxdk/fcgx"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3e10c9d5cf9c522adaaa02a6367c9d40c54a11fff73a8ccb72cc2543a17eae62"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "github.com/cboxdk/fcgx",
+      "purl": "pkg:golang/github.com/cboxdk/fcgx@v1.1.0?type=module",
+      "scope": "required",
+      "type": "library",
+      "version": "v1.1.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/cboxdk/phpfpm@v0.1.0?type=module",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/cboxdk/phpfpm"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "57ad3936e49e63fe11463d7b1faefa9cfbb75a38f04d2160fc5ef68dc774a9c5"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "github.com/cboxdk/phpfpm",
+      "purl": "pkg:golang/github.com/cboxdk/phpfpm@v0.1.0?type=module",
+      "scope": "required",
+      "type": "library",
+      "version": "v0.1.0"
+    },
+    {
       "bom-ref": "pkg:golang/github.com/cespare/xxhash/v2@v2.3.0?type=module",
       "externalReferences": [
         {
@@ -55,33 +109,6 @@
       "scope": "required",
       "type": "library",
       "version": "v2.3.0"
-    },
-    {
-      "bom-ref": "pkg:golang/github.com/cboxdk/fcgx@v1.0.0?type=module",
-      "externalReferences": [
-        {
-          "type": "vcs",
-          "url": "https://github.com/cboxdk/fcgx"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "b3ab1077168a729d5299bf27a122c6eb5688dfe162edba7351f74d646402c45b"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ],
-      "name": "github.com/cboxdk/fcgx",
-      "purl": "pkg:golang/github.com/cboxdk/fcgx@v1.0.0?type=module",
-      "scope": "required",
-      "type": "library",
-      "version": "v1.0.0"
     },
     {
       "bom-ref": "pkg:golang/github.com/fsnotify/fsnotify@v1.9.0?type=module",
@@ -873,10 +900,9 @@
   "dependencies": [
     {
       "dependsOn": [
-        "pkg:golang/github.com/cboxdk/fcgx@v1.0.0?type=module",
+        "pkg:golang/github.com/cboxdk/phpfpm@v0.1.0?type=module",
         "pkg:golang/github.com/prometheus/client_golang@v1.24.1?type=module",
         "pkg:golang/github.com/prometheus/client_model@v0.6.2?type=module",
-        "pkg:golang/github.com/shirou/gopsutil/v3@v3.24.5?type=module",
         "pkg:golang/github.com/spf13/cobra@v1.10.2?type=module",
         "pkg:golang/github.com/spf13/viper@v1.21.0?type=module",
         "pkg:golang/gopkg.in/yaml.v3@v3.0.1?type=module"
@@ -887,10 +913,25 @@
       "ref": "pkg:golang/github.com/beorn7/perks@v1.0.1?type=module"
     },
     {
-      "ref": "pkg:golang/github.com/cespare/xxhash/v2@v2.3.0?type=module"
+      "ref": "pkg:golang/github.com/cboxdk/fcgx@v1.1.0?type=module"
     },
     {
-      "ref": "pkg:golang/github.com/cboxdk/fcgx@v1.0.0?type=module"
+      "dependsOn": [
+        "pkg:golang/github.com/cboxdk/fcgx@v1.1.0?type=module",
+        "pkg:golang/github.com/go-ole/go-ole@v1.2.6?type=module",
+        "pkg:golang/github.com/lufia/plan9stats@v0.0.0-20211012122336-39d0f177ccd0?type=module",
+        "pkg:golang/github.com/power-devops/perfstat@v0.0.0-20210106213030-5aafc221ea8c?type=module",
+        "pkg:golang/github.com/shirou/gopsutil/v3@v3.24.5?type=module",
+        "pkg:golang/github.com/shoenig/go-m1cpu@v0.1.6?type=module",
+        "pkg:golang/github.com/tklauser/go-sysconf@v0.3.12?type=module",
+        "pkg:golang/github.com/tklauser/numcpus@v0.6.1?type=module",
+        "pkg:golang/github.com/yusufpapurcu/wmi@v1.2.4?type=module",
+        "pkg:golang/golang.org/x/sys@v0.47.0?type=module"
+      ],
+      "ref": "pkg:golang/github.com/cboxdk/phpfpm@v0.1.0?type=module"
+    },
+    {
+      "ref": "pkg:golang/github.com/cespare/xxhash/v2@v2.3.0?type=module"
     },
     {
       "dependsOn": [
