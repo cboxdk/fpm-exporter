@@ -9,7 +9,7 @@ import (
 	"github.com/cboxdk/fpm-exporter/internal/laravel"
 	"github.com/cboxdk/fpm-exporter/internal/logging"
 	"github.com/cboxdk/fpm-exporter/internal/metrics"
-	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
+	"github.com/cboxdk/phpfpm"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

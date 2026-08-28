@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/cboxdk/phpfpm"
 	"strings"
 
 	"time"
@@ -39,27 +40,20 @@ type FPMConfig struct {
 	Pools        []FPMPoolConfig `mapstructure:"pools"`
 }
 
-type FPMPoolConfig struct {
-	// Name identifies the pool in metrics when the pool itself could not be
-	// reached. A successful scrape uses the name PHP-FPM reports; this is the
-	// fallback so a failing pool is still labelled with something meaningful.
-	Name              string `mapstructure:"name"`
-	Socket            string `mapstructure:"socket"`
-	StatusSocket      string `mapstructure:"status_socket"`
-	StatusPath        string `mapstructure:"status_path"`
-	StatusPathEnabled bool   `mapstructure:"status_path_enabled"`
-	ConfigPath        string `mapstructure:"config_path"`
-	Binary            string `mapstructure:"binary"`
-	CliBinary         string `mapstructure:"cli_binary"`
-	// Timeout bounds the FastCGI dial for this pool. Defaults to 3s.
-	Timeout time.Duration `mapstructure:"timeout"`
-}
+// FPMPoolConfig describes how to reach one PHP-FPM pool.
+//
+// It is an alias for phpfpm.Target rather than a copy of it. The two were
+// identical field for field after the domain layer moved out of this repo, and
+// keeping both meant a conversion function plus two places to remember whenever
+// a field is added. The mapstructure tags live on the library type, so viper
+// decodes into it directly.
+type FPMPoolConfig = phpfpm.Target
 
 // normalize fills in the defaults a hand-written pool is entitled to assume.
 // Autodiscovery already sets both sockets; manual configuration did not, so the
 // documented example -- socket plus status_path -- collected nothing at all,
 // because collection dials StatusSocket exclusively.
-func (p *FPMPoolConfig) normalize() {
+func normalizePool(p *FPMPoolConfig) {
 	if p.StatusSocket == "" {
 		p.StatusSocket = p.Socket
 	}
@@ -161,7 +155,7 @@ func Load() (*Config, error) {
 	}
 
 	for i := range cfg.PHPFpm.Pools {
-		cfg.PHPFpm.Pools[i].normalize()
+		normalizePool(&cfg.PHPFpm.Pools[i])
 	}
 
 	return &cfg, nil

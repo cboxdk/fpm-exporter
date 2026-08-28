@@ -6,8 +6,9 @@ import (
 
 	"github.com/cboxdk/fpm-exporter/internal/config"
 	"github.com/cboxdk/fpm-exporter/internal/laravel"
-	"github.com/cboxdk/fpm-exporter/internal/phpfpm"
+	"github.com/cboxdk/fpm-exporter/internal/logging"
 	"github.com/cboxdk/fpm-exporter/internal/server"
+	"github.com/cboxdk/phpfpm"
 )
 
 func GetMetrics(ctx context.Context, cfg *config.Config) (*Metrics, error) {
@@ -23,7 +24,10 @@ func GetMetrics(ctx context.Context, cfg *config.Config) (*Metrics, error) {
 	}
 
 	if cfg.PHPFpm.Enabled {
-		outcomes, err := phpfpm.GetMetrics(ctx, cfg)
+		// The library scrapes the pools it is given; which pools exist is this
+		// application's business, not the library's. FPMPoolConfig is an alias
+		// for phpfpm.Target, so the slice passes straight through.
+		outcomes, err := phpfpm.ScrapeAll(ctx, cfg.PHPFpm.Pools, logging.L())
 		out.FpmPools = outcomes
 
 		// Successful pools keep the published /json shape; failures are
