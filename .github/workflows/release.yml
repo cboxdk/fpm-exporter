@@ -8,6 +8,15 @@ on:
 permissions:
   contents: write
 
+env:
+  # Kept in step with test.yml: releasing on an older toolchain than the one
+  # the tests and the vulnerability scan run on defeats both.
+  # Pinned to the patch, not the minor. `1.26.x` can resolve to a toolchain
+  # that still ships standard-library advisories -- go1.26.6 fixes four that
+  # govulncheck reports against 1.26.5. Bump this when the scan fails on the
+  # standard library: that is the gate working.
+  GO_VERSION: '1.26.7'
+
 jobs:
   build:
     name: Build and Release
@@ -20,12 +29,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.24.1'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Set version info
         id: vars
@@ -49,8 +58,37 @@ jobs:
             -o "$output" .
 
       - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/fpm-exporter-${{ matrix.goos }}-${{ matrix.goarch }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  checksums:
+    name: Publish checksums
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # install.sh verifies the binary it downloads against this file, so it has
+      # to cover every asset -- hence a job that runs after the whole matrix.
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+          gh release download "${GITHUB_REF#refs/tags/}" \
+            --repo "$GITHUB_REPOSITORY" --dir dist --pattern 'fpm-exporter-*'
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum fpm-exporter-* > checksums.txt
+          cat checksums.txt
+
+      - name: Upload checksums
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
