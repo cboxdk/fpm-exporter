@@ -126,7 +126,6 @@ var rootCmd = &cobra.Command{
 						StatusPath:   d.StatusPath,
 						ConfigPath:   d.ConfigPath,
 						Binary:       d.Binary,
-						CliBinary:    d.CliBinary,
 					})
 				}
 			}
