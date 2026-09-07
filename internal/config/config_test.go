@@ -51,14 +51,12 @@ func TestConfig_StructDefaults(t *testing.T) {
 func TestFPMPoolConfig_Structure(t *testing.T) {
 	// Test FPMPoolConfig structure
 	poolConfig := FPMPoolConfig{
-		Socket:            "unix:///var/run/php-fpm.sock",
-		StatusSocket:      "unix:///var/run/php-fpm.sock",
-		StatusPath:        "/status",
-		StatusPathEnabled: true,
-		ConfigPath:        "/etc/php-fpm.conf",
-		Binary:            "/usr/sbin/php-fpm",
-		CliBinary:         "/usr/bin/php",
-		Timeout:           5 * time.Second,
+		Socket:       "unix:///var/run/php-fpm.sock",
+		StatusSocket: "unix:///var/run/php-fpm.sock",
+		StatusPath:   "/status",
+		ConfigPath:   "/etc/php-fpm.conf",
+		Binary:       "/usr/sbin/php-fpm",
+		Timeout:      5 * time.Second,
 	}
 
 	// Verify all fields are accessible
