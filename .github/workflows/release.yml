@@ -12,10 +12,13 @@ env:
   # Kept in step with test.yml: releasing on an older toolchain than the one
   # the tests and the vulnerability scan run on defeats both.
   # Pinned to the patch, not the minor. `1.26.x` can resolve to a toolchain
-  # that still ships standard-library advisories -- go1.26.6 fixes four that
-  # govulncheck reports against 1.26.5. Bump this when the scan fails on the
-  # standard library: that is the gate working.
-  GO_VERSION: '1.26.6'
+  # that still ships standard-library advisories -- go1.26.9 fixes three that
+  # downstream CVE gates report against 1.26.7 (CVE-2026-78667 net/http,
+  # CVE-2026-78669 net/http2, CVE-2026-97031 crypto/tls). Bump this when a scan
+  # fails on the standard library: that is the gate working.
+  # Mirrored by the `toolchain` directive in go.mod so local builds get the
+  # same floor -- a release-only pin leaves contributors shipping old stdlib.
+  GO_VERSION: '1.26.10'
 
 jobs:
   build:
