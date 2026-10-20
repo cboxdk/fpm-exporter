@@ -2,6 +2,13 @@ module github.com/cboxdk/fpm-exporter
 
 go 1.25.0
 
+// Floor for the toolchain that builds this module. go1.26.9 fixes three
+// stdlib DoS advisories (CVE-2026-78667, CVE-2026-78669, CVE-2026-97031) that
+// downstream image CVE gates reject. Without this, a local build on an older
+// toolchain silently produces a binary carrying them; the CI pin alone cannot
+// prevent that. Keep in step with GO_VERSION in .github/workflows/.
+toolchain go1.26.10
+
 require (
 	github.com/elasticphphq/fcgx v1.0.0
 	github.com/prometheus/client_golang v1.22.0
