@@ -57,7 +57,7 @@
       "version": "v1.2.0"
     },
     {
-      "bom-ref": "pkg:golang/github.com/cboxdk/phpfpm@v1.2.0?type=module",
+      "bom-ref": "pkg:golang/github.com/cboxdk/phpfpm@v1.2.1-0.20261104133832-da803ecf6e6c?type=module",
       "externalReferences": [
         {
           "type": "vcs",
@@ -67,7 +67,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "c397514caa2db160b309e568989850f075057834b15b862d8cc4f6e6273ca3db"
+          "content": "94b6555db969be4e3b12860339ceded69ccad998697cf4bd166676d4baed1022"
         }
       ],
       "licenses": [
@@ -78,10 +78,10 @@
         }
       ],
       "name": "github.com/cboxdk/phpfpm",
-      "purl": "pkg:golang/github.com/cboxdk/phpfpm@v1.2.0?type=module",
+      "purl": "pkg:golang/github.com/cboxdk/phpfpm@v1.2.1-0.20261104133832-da803ecf6e6c?type=module",
       "scope": "required",
       "type": "library",
-      "version": "v1.2.0"
+      "version": "v1.2.1-0.20261104133832-da803ecf6e6c"
     },
     {
       "bom-ref": "pkg:golang/github.com/cespare/xxhash/v2@v2.3.0?type=module",
@@ -900,7 +900,7 @@
   "dependencies": [
     {
       "dependsOn": [
-        "pkg:golang/github.com/cboxdk/phpfpm@v1.2.0?type=module",
+        "pkg:golang/github.com/cboxdk/phpfpm@v1.2.1-0.20261104133832-da803ecf6e6c?type=module",
         "pkg:golang/github.com/prometheus/client_golang@v1.24.1?type=module",
         "pkg:golang/github.com/prometheus/client_model@v0.6.3?type=module",
         "pkg:golang/github.com/spf13/cobra@v1.10.2?type=module",
@@ -928,7 +928,7 @@
         "pkg:golang/github.com/yusufpapurcu/wmi@v1.2.4?type=module",
         "pkg:golang/golang.org/x/sys@v0.47.0?type=module"
       ],
-      "ref": "pkg:golang/github.com/cboxdk/phpfpm@v1.2.0?type=module"
+      "ref": "pkg:golang/github.com/cboxdk/phpfpm@v1.2.1-0.20261104133832-da803ecf6e6c?type=module"
     },
     {
       "ref": "pkg:golang/github.com/cespare/xxhash/v2@v2.3.0?type=module"

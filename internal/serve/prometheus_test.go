@@ -959,3 +959,72 @@ func TestCollect_SatisfiesPedanticRegistry(t *testing.T) {
 		t.Fatalf("Pedantic registry rejected the collection: %v", err)
 	}
 }
+
+func TestCollect_OpcacheObservationQuality(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		observed bool
+		enabled  bool
+	}{
+		{name: "unavailable", observed: false, enabled: true},
+		{name: "disabled", observed: true, enabled: false},
+		{name: "enabled", observed: true, enabled: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := &fakeMetricsSource{metrics: &metrics.Metrics{
+				FpmPools: []phpfpm.PoolOutcome{{
+					Name: "www", Socket: "unix:///run/www.sock",
+					Result: &phpfpm.Result{Pools: map[string]phpfpm.Pool{"www": {
+						Name: "www", ListenQueue: 3, OpcacheObserved: tc.observed,
+						OpcacheStatus: phpfpm.OpcacheStatus{
+							Enabled:     tc.enabled,
+							MemoryUsage: phpfpm.Memory{UsedMemory: 42},
+							Statistics:  phpfpm.Stats{Hits: 17},
+						},
+					}}},
+				}},
+			}}
+			families := gather(t, source)
+			if got := families["phpfpm_opcache_scrape_success"].GetMetric()[0].GetGauge().GetValue(); got != boolToFloat(tc.observed) {
+				t.Errorf("observation success = %v", got)
+			}
+			if got := families["phpfpm_listen_queue"].GetMetric()[0].GetGauge().GetValue(); got != 3 {
+				t.Errorf("unrelated FPM queue metric was lost: %v", got)
+			}
+			state, hasState := families["phpfpm_opcache_enabled"]
+			if hasState != tc.observed {
+				t.Fatalf("cache state present = %v, observed = %v", hasState, tc.observed)
+			}
+			if hasState && state.GetMetric()[0].GetGauge().GetValue() != boolToFloat(tc.enabled) {
+				t.Error("wrong enabled state")
+			}
+			for _, metric := range []string{"phpfpm_opcache_used_memory_bytes", "phpfpm_opcache_hits_total"} {
+				_, present := families[metric]
+				if present != (tc.observed && tc.enabled) {
+					t.Errorf("%s present = %v", metric, present)
+				}
+			}
+			if tc.observed && tc.enabled {
+				if got := families["phpfpm_opcache_used_memory_bytes"].GetMetric()[0].GetGauge().GetValue(); got != 42 {
+					t.Errorf("used bytes = %v", got)
+				}
+				if got := families["phpfpm_opcache_hits_total"].GetMetric()[0].GetCounter().GetValue(); got != 17 {
+					t.Errorf("hits = %v", got)
+				}
+			}
+		})
+	}
+}
+
+func TestCollect_FailedPoolHasNoOpcacheState(t *testing.T) {
+	source := &fakeMetricsSource{metrics: &metrics.Metrics{
+		FpmPools: []phpfpm.PoolOutcome{{Name: "www", Socket: "unix:///run/www.sock", Err: errors.New("unavailable")}},
+	}}
+	families := gather(t, source)
+	if got := families["phpfpm_opcache_scrape_success"].GetMetric()[0].GetGauge().GetValue(); got != 0 {
+		t.Errorf("unreachable pool reported OPcache observation success: %v", got)
+	}
+	if _, ok := families["phpfpm_opcache_enabled"]; ok {
+		t.Fatal("unreachable pool reported cache state")
+	}
+}

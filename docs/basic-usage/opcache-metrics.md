@@ -17,6 +17,25 @@ The exporter:
 
 This approach gives you per-pool Opcache visibility, unlike system-wide tools.
 
+## Observation quality
+
+`phpfpm_opcache_scrape_success{pool,socket}` is 1 only when the probe read an
+explicit OPcache state. If it is 0, cache state and counters are omitted; do not
+interpret their absence as a disabled cache or zero memory/hits. An unreachable
+FPM pool also reports OPcache observation success 0. FPM status and OPcache are
+separate probes: the FPM pool can be healthy while OPcache is unavailable.
+
+The underlying library requests aggregate statistics without script inventory.
+The probe still executes through FastCGI and is not intrinsically sleep-safe.
+Runtime integrations must coordinate it with checkpoint/restore; pointing it at
+a wake proxy or checking "awake" before a scrape is not sufficient protection
+against transition races.
+
+This development version temporarily pins the shared phpfpm library to upstream
+commit `da803ec` for its observation-quality field. Replace the Go pseudo-version
+with the approved phpfpm release before publishing the next exporter release.
+No PHP baseimage is upgraded by this source change.
+
 ## Key Metrics
 
 ### Cache Efficiency

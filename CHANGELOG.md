@@ -67,6 +67,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `phpfpm_opcache_scrape_success` distinguishes a readable OPcache state from an
+  unavailable probe. Unavailable probes omit cache state/counters instead of
+  reporting a disabled cache; other FPM measurements remain available.
+
 - `phpfpm_pools_configured`, replacing the synthetic `phpfpm_up{pool="none"}`
   placeholder.
 - `/healthz`, which answers without collecting anything, and a landing page at

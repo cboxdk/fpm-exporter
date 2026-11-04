@@ -101,6 +101,7 @@ type PrometheusCollector struct {
 	memoryPeakDesc          *prometheus.Desc
 
 	// Opcache metrics
+	opcacheScrapeSuccessDesc   *prometheus.Desc
 	opcacheEnabledDesc         *prometheus.Desc
 	opcacheUsedMemoryDesc      *prometheus.Desc
 	opcacheFreeMemoryDesc      *prometheus.Desc
@@ -182,6 +183,7 @@ func NewPrometheusCollectorWithSource(cfg *config.Config, source MetricsSource) 
 		memoryPeakDesc:          prometheus.NewDesc("phpfpm_memory_peak", "Peak memory usage of the pool.", labels, nil),
 
 		// Opcache metrics
+		opcacheScrapeSuccessDesc:   prometheus.NewDesc("phpfpm_opcache_scrape_success", "Whether an explicit OPcache state was observed for this pool.", labels, nil),
 		opcacheEnabledDesc:         prometheus.NewDesc("phpfpm_opcache_enabled", "Whether opcache is enabled.", labels, nil),
 		opcacheUsedMemoryDesc:      prometheus.NewDesc("phpfpm_opcache_used_memory_bytes", "Amount of used opcache memory in bytes.", labels, nil),
 		opcacheFreeMemoryDesc:      prometheus.NewDesc("phpfpm_opcache_free_memory_bytes", "Amount of free opcache memory in bytes.", labels, nil),
@@ -247,6 +249,7 @@ func (pc *PrometheusCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- pc.memoryPeakDesc
 
 	// Opcache metrics
+	ch <- pc.opcacheScrapeSuccessDesc
 	ch <- pc.opcacheEnabledDesc
 	ch <- pc.opcacheUsedMemoryDesc
 	ch <- pc.opcacheFreeMemoryDesc
@@ -359,6 +362,7 @@ func (pc *PrometheusCollector) Collect(ch chan<- prometheus.Metric) {
 			continue
 		}
 		ch <- prometheus.MustNewConstMetric(pc.upDesc, prometheus.GaugeValue, 0, outcome.Name, outcome.Socket)
+		ch <- prometheus.MustNewConstMetric(pc.opcacheScrapeSuccessDesc, prometheus.GaugeValue, 0, outcome.Name, outcome.Socket)
 	}
 
 	for _, outcome := range m.FpmPools {
@@ -433,21 +437,25 @@ func (pc *PrometheusCollector) Collect(ch chan<- prometheus.Metric) {
 					prometheus.GaugeValue, proc.LastRequestCPU, labels...)
 			}
 
-			// Opcache metrics
-			ch <- prometheus.MustNewConstMetric(pc.opcacheEnabledDesc, prometheus.GaugeValue, boolToFloat(pool.OpcacheStatus.Enabled), poolName, socket)
-			if pool.OpcacheStatus.Enabled {
-				ch <- prometheus.MustNewConstMetric(pc.opcacheUsedMemoryDesc, prometheus.GaugeValue, float64(pool.OpcacheStatus.MemoryUsage.UsedMemory), poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheFreeMemoryDesc, prometheus.GaugeValue, float64(pool.OpcacheStatus.MemoryUsage.FreeMemory), poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheWastedMemoryDesc, prometheus.GaugeValue, float64(pool.OpcacheStatus.MemoryUsage.WastedMemory), poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheWastedPercentDesc, prometheus.GaugeValue, pool.OpcacheStatus.MemoryUsage.CurrentWastedPct, poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheCachedScriptsDesc, prometheus.GaugeValue, float64(pool.OpcacheStatus.Statistics.NumCachedScripts), poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheHitsDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.Hits), poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheMissesDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.Misses), poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheBlacklistMissesDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.BlacklistMisses), poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheOomRestartsDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.OomRestarts), poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheHashRestartsDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.HashRestarts), poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheManualRestartsDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.ManualRestarts), poolName, socket)
-				ch <- prometheus.MustNewConstMetric(pc.opcacheHitRateDesc, prometheus.GaugeValue, pool.OpcacheStatus.Statistics.HitRate, poolName, socket)
+			// An unavailable probe must not be reported as a disabled or empty cache.
+			ch <- prometheus.MustNewConstMetric(pc.opcacheScrapeSuccessDesc, prometheus.GaugeValue, boolToFloat(pool.OpcacheObserved), poolName, socket)
+			if pool.OpcacheObserved {
+				ch <- prometheus.MustNewConstMetric(pc.opcacheEnabledDesc, prometheus.GaugeValue, boolToFloat(pool.OpcacheStatus.Enabled), poolName, socket)
+				if pool.OpcacheStatus.Enabled {
+					ch <- prometheus.MustNewConstMetric(pc.opcacheUsedMemoryDesc, prometheus.GaugeValue, float64(pool.OpcacheStatus.MemoryUsage.UsedMemory), poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheFreeMemoryDesc, prometheus.GaugeValue, float64(pool.OpcacheStatus.MemoryUsage.FreeMemory), poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheWastedMemoryDesc, prometheus.GaugeValue, float64(pool.OpcacheStatus.MemoryUsage.WastedMemory), poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheWastedPercentDesc, prometheus.GaugeValue, pool.OpcacheStatus.MemoryUsage.CurrentWastedPct, poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheCachedScriptsDesc, prometheus.GaugeValue, float64(pool.OpcacheStatus.Statistics.NumCachedScripts), poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheHitsDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.Hits), poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheMissesDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.Misses), poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheBlacklistMissesDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.BlacklistMisses), poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheOomRestartsDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.OomRestarts), poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheHashRestartsDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.HashRestarts), poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheManualRestartsDesc, prometheus.CounterValue, float64(pool.OpcacheStatus.Statistics.ManualRestarts), poolName, socket)
+					ch <- prometheus.MustNewConstMetric(pc.opcacheHitRateDesc, prometheus.GaugeValue, pool.OpcacheStatus.Statistics.HitRate, poolName, socket)
+				}
+
 			}
 
 			// Pool config metrics
