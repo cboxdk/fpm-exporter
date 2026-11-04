@@ -10,7 +10,7 @@ go 1.26.0
 toolchain go1.26.10
 
 require (
-	github.com/cboxdk/phpfpm v1.2.1-0.20261104133832-da803ecf6e6c
+	github.com/cboxdk/phpfpm v1.2.1-0.20261104174553-9b5982dda7df
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
 	github.com/spf13/cobra v1.10.2

@@ -219,3 +219,26 @@ func TestMetrics_LaravelOmitEmpty(t *testing.T) {
 		t.Errorf("Expected an empty Laravel map to be omitted, got %s", jsonData)
 	}
 }
+
+func TestMetricsJSONPreservesNativeOpcacheEpochs(t *testing.T) {
+	var pool phpfpm.Pool
+	if err := json.Unmarshal([]byte(`{"pool":"www","opcache_observed":true,"opcache_status":{"opcache_enabled":true,"opcache_statistics":{"start_time":1730000000,"last_restart_time":1730000300}}}`), &pool); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(Metrics{Fpm: map[string]*phpfpm.Result{
+		"tcp://127.0.0.1:9000": {Pools: map[string]phpfpm.Pool{"www": pool}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	result := decoded["Fpm"].(map[string]any)["tcp://127.0.0.1:9000"].(map[string]any)
+	published := result["Pools"].(map[string]any)["www"].(map[string]any)
+	statistics := published["opcache_status"].(map[string]any)["opcache_statistics"].(map[string]any)
+	if published["opcache_observed"] != true || statistics["start_time"] != float64(1730000000) || statistics["last_restart_time"] != float64(1730000300) {
+		t.Fatalf("native OPcache observation and epochs must survive the JSON export: %s", payload)
+	}
+}

@@ -30,6 +30,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Preserve native OPcache `start_time` and `last_restart_time` in `/json`, so
+  consumers can distinguish cumulative counter epochs from export timestamps.
+  The phpfpm dependency temporarily pins `9b5982d`; replace this prerelease pin
+  with the published library version before releasing the exporter.
+
 - **Failures are reported.** Every error in PHP-FPM collection was a `continue`
   plus a log line, so `phpfpm_up` was hardcoded to 1, `phpfpm_scrape_success`
   could never be 0, and a pool that died disappeared from the output instead of
