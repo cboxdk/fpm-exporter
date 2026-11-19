@@ -7,7 +7,7 @@ go 1.25.0
 // downstream image CVE gates reject. Without this, a local build on an older
 // toolchain silently produces a binary carrying them; the CI pin alone cannot
 // prevent that. Keep in step with GO_VERSION in .github/workflows/.
-toolchain go1.26.10
+toolchain go1.26.11
 
 require (
 	github.com/elasticphphq/fcgx v1.0.0

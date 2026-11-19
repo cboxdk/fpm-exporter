@@ -17,7 +17,7 @@ env:
   # fails on the standard library: that is the gate working.
   # Mirrored by the `toolchain` directive in go.mod so local builds get the
   # same floor -- a release-only pin leaves contributors shipping old stdlib.
-  GO_VERSION: '1.26.10'
+  GO_VERSION: '1.26.11'
 
 jobs:
   test:
